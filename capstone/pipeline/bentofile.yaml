@@ -5,7 +5,7 @@ labels:
 description: "Malicious URL Classifier"
 include:
   - "*.py"
-  - "requirements.txt"
+  - "requirements.lock"
 python:
   packages:
     - torch

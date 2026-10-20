@@ -88,3 +88,4 @@ watchfiles==0.22.0
 wrapt==1.16.0
 yarl==1.9.4
 zipp==3.19.0
+fastapi
