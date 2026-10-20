@@ -1,0 +1,13 @@
+service: "service:svc"
+labels:
+  owner: "drl"
+  project: "malicious_url_classifier"
+description: "Malicious URL Classifier"
+include:
+  - "*.py"
+  - "requirements.txt"
+python:
+  packages:
+    - torch
+    - transformers
+    - bentoml
