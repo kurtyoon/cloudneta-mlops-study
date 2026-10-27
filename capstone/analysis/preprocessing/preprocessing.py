@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import warnings
 
@@ -5,17 +6,28 @@ from transformers import BertTokenizer
 from util import malicious_translation
 from sklearn.ensemble import RandomForestClassifier
 from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+
+# Same revision as the serving image (pipeline/Dockerfile), so training and
+# serving cut URLs into the same tokens.
+TOKENIZER_REVISION = 'cd5ef92a9fb2f889e972770a36d4ed042daf221e'
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 class Preprocessing:
-    def __init__(self, url_path, feature_path):
+    def __init__(self, url_path, feature_path=None, sample_size=None, seed=42):
         self.url = pd.read_csv(url_path)
-        self.feature = pd.read_csv(feature_path)
-        self.feature.dropna(inplace=True)
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        if sample_size:
+            # Keep the class ratio of the full set (benign 66%, malware 5%).
+            self.url, _ = train_test_split(self.url, train_size=sample_size,
+                                           stratify=self.url['type'], random_state=seed)
+        self.feature = None
+        if feature_path:
+            self.feature = pd.read_csv(feature_path)
+            self.feature.dropna(inplace=True)
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-cased', revision=TOKENIZER_REVISION)
 
     def tokenization(self, string):
         tokens_ids_list = []
@@ -66,11 +78,19 @@ class Preprocessing:
 
     def preprocessing(self):
         self.url_preprocessing()
-        self.feature_preprocessing()
+        if self.feature is not None:
+            self.feature_preprocessing()
 
 
 if __name__ == '__main__':
-    url_path = 'data/malicious_phish.csv'
-    feature_path = 'data/dataset_full.csv'
-    preprocessing = Preprocessing(url_path, feature_path)
+    # w02: URL data only, as serving takes only a URL. The website feature data
+    # (dataset_full.csv) and its SMOTE step are left out; pass --feature-path to
+    # run them as before.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--url-path', default='data/malicious_phish.csv')
+    parser.add_argument('--feature-path', default=None)
+    parser.add_argument('--sample-size', type=int, default=40000)
+    parser.add_argument('--seed', type=int, default=42)
+    args = parser.parse_args()
+    preprocessing = Preprocessing(args.url_path, args.feature_path, args.sample_size, args.seed)
     preprocessing.preprocessing()

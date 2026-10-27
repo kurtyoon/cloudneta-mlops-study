@@ -15,3 +15,4 @@ MLOps 스터디(2026-10 ~ 11)를 하며 2024년 캡스톤의 악성 URL 분류 �
 |---|---|---|
 | 1주차 | [다시 만들 수 없는 모델](https://blog.somnitor.dev/posts/81/reading-capstone-through-ml-lifecycle) | 없음 (원본 진단) |
 | 1주차 | 같은 태그, 다른 이미지 | `capstone/pipeline/`: 서빙 이미지의 베이스 이미지·의존성·토크나이저 고정, 모델 해시를 담은 이미지 태그 |
+| 2주차 | 캡스톤 학습을 MLflow에 기록하기 | `capstone/analysis/`: 학습이 돌게 고치고 MLflow에 파라미터, 지표, 모델 기록, run 비교 스크립트, EDA |
