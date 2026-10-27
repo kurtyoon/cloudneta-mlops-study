@@ -1,0 +1,7 @@
+__pycache__/
+.venv*/
+.pytest_cache/
+# 컴파일 결과에는 이미지 주소(레지스트리 호스트)가 들어간다.
+pipeline.yaml
+# local/harness.sh가 만든 일회용 키와 실행 결과
+local/.work/

@@ -1,0 +1,18 @@
+# 캡스톤의 Feast 프로젝트. 클러스터 안 주소로 적는다(파이프라인 Pod에서만 읽는다).
+# - 레지스트리: S3의 feature-registry/capstone/registry.db. Feast는 FEAST_S3_ENDPOINT_URL로
+#   엔드포인트를 찾는다(common.feature_store가 넣는다).
+# - 오프라인 스토어: S3의 parquet(definitions.py의 FileSource).
+# - 온라인 스토어: Valkey. CH4, CH5 프로젝트(my_feature_repo)와 같은 서버를 쓰고,
+#   키 끝에 프로젝트 이름이 붙어서 서로 섞이지 않는다.
+# 비밀번호는 ${VALKEY_PASSWORD}로만 적는다. Feast가 이 파일을 읽을 때 환경 변수 값으로 바꾸고,
+# 단계 Pod는 그 값을 Secret feast-valkey에서 받는다(pipeline.py). 변수가 없는 단계에서는
+# 글자 그대로 남는데, 그 단계는 온라인 스토어를 열지 않는다.
+project: capstone
+registry: s3://feature-registry/capstone/registry.db
+provider: local
+offline_store:
+  type: file
+online_store:
+  type: redis
+  connection_string: "valkey.feast.svc.cluster.local:6379,password=${VALKEY_PASSWORD}"
+entity_key_serialization_version: 2
