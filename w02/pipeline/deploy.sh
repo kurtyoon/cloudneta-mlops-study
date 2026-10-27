@@ -1,0 +1,2 @@
+bentoml build
+bentoml serve bert_classifier_service:latest
