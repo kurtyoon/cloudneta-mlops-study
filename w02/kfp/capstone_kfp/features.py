@@ -2,7 +2,7 @@
 
 원본 CSV → 중복 제거 → 클래스 비율을 지킨 표본 → 토큰 id → 오프라인 스토어(parquet) → feast apply.
 표본과 토큰화는 analysis/preprocessing/preprocessing.py, train/test 분할은
-analysis/classifier/classifier.py와 같은 방식이라 post-2의 run과 비교할 수 있다.
+analysis/classifier/classifier.py와 같은 방식이라 2편의 run과 비교할 수 있다.
 """
 import hashlib
 import io

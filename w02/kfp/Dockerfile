@@ -18,7 +18,7 @@ RUN pip install --require-hashes --only-binary :all: -r requirements.lock \
     && pip install --require-hashes --no-deps --no-build-isolation -r requirements-kfp.lock
 
 # 토크나이저와 BERT 설정(config.json)을 고정한 revision으로 이미지에 넣는다.
-# post-2의 학습(preprocessing.py, classifier.py)과 1주차 서빙 이미지가 쓴 revision이다.
+# 2편의 학습(preprocessing.py, classifier.py)과 1주차 서빙 이미지가 쓴 revision이다.
 # 저장할 디렉터리 이름을 bert-base-cased로 하지 않는다. WORKDIR에 그 이름이 생기면
 # 다음 from_pretrained('bert-base-cased')가 Hub 대신 그 디렉터리를 읽는다.
 # HF 캐시는 남기지 않는다. Pod는 Hugging Face Hub에 접속하지 않는다.

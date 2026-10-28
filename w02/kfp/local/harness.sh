@@ -68,7 +68,7 @@ EOF
     --memory 256m -v "$work/valkey.conf:/etc/valkey/valkey.conf:ro" --env-file "$work/valkey.env" \
     valkey/valkey:9.1.2-trixie valkey-server /etc/valkey/valkey.conf >/dev/null
   # MLflow는 클러스터처럼 아티팩트를 프록시해 S3 버킷 mlflow에 둔다. 호스트의 127.0.0.1:35000도 열어
-  # 노트북 쪽 클라이언트(post-2 환경)가 붙을 수 있게 한다.
+  # 노트북 쪽 클라이언트(2편 환경)가 붙을 수 있게 한다.
   docker run -d --name capstone-mlflow --network "$net" --network-alias mlflow.mlflow.svc.cluster.local \
     -p 127.0.0.1:35000:5000 -v capstone-mlflow-data:/mlflow \
     -e AWS_ACCESS_KEY_ID="$mk" -e AWS_SECRET_ACCESS_KEY="$ms" -e AWS_DEFAULT_REGION=us-east-1 \

@@ -1,6 +1,6 @@
 """3단계: 승격. 새 버전의 macro F1이 기준을 넘으면 별칭 champion을 새 버전으로 옮긴다.
 
-post-2에서 등록한 capstone-url-classifier 버전 1(run lr-1e-4, macro F1 0.9432, 표본 4만 건,
+2편에서 등록한 capstone-url-classifier 버전 1(run lr-1e-4, macro F1 0.9432, 표본 4만 건,
 3 epoch)이 이미 champion이다. 기준을 넘지 못하면 별칭은 그대로 두고, 추론 단계는 기존
 champion으로 예측한다. 어느 쪽이든 새 버전에 gate 태그를 남겨 MLflow UI에서 결과가 보이게 한다.
 """

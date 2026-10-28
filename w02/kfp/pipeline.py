@@ -108,7 +108,7 @@ def make_pipeline(image):
             num_heads: int = 4,
             epochs: int = 2,
             batch_size: int = 16,
-            # post-2에서 champion이 된 run(lr-1e-4)의 학습률. classifier.py 기본값 1e-5는 랜덤 초기화한
+            # 2편에서 champion이 된 run(lr-1e-4)의 학습률. classifier.py 기본값 1e-5는 랜덤 초기화한
             # 작은 모델에는 느렸다(3 epoch 뒤 macro F1 0.846).
             lr: float = 1e-4,
             macro_f1_threshold: float = 0.9,

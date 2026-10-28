@@ -69,8 +69,8 @@ def test_tokenize_truncates_without_padding(tokenizer):
 
 
 def test_baked_tokenizer_matches_post2():
-    """이미지의 토크나이저가 post-2 환경(transformers 4.40.1, 같은 revision)과 같은 id를 낸다.
-    기대값은 post-2의 venv에서 BertTokenizer.from_pretrained('bert-base-cased', revision=...)로 뽑았다."""
+    """이미지의 토크나이저가 2편 환경(transformers 4.40.1, 같은 revision)과 같은 id를 낸다.
+    기대값은 2편의 venv에서 BertTokenizer.from_pretrained('bert-base-cased', revision=...)로 뽑았다."""
     from transformers import BertTokenizer
 
     t = BertTokenizer.from_pretrained(config.BERT_DIR)

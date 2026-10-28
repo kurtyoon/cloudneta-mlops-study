@@ -15,8 +15,8 @@ pyarrow==18.1.0
 numpy==1.26.4
 dask==2024.12.1
 
-# 모델: post-2 학습 환경(analysis/classifier)과 같은 버전.
-# champion v1은 post-2에서 torch.save로 피클된 모델이라, 같은 torch와 transformers여야 다시 불러온다.
+# 모델: 2편 학습 환경(analysis/classifier)과 같은 버전.
+# champion v1은 2편에서 torch.save로 피클된 모델이라, 같은 torch와 transformers여야 다시 불러온다.
 torch==2.3.0
 transformers==4.40.1
 scikit-learn==1.4.2

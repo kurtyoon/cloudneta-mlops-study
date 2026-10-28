@@ -3,7 +3,7 @@
 analysis/classifier/classifier.py를 그대로 옮기고 데이터를 읽는 부분만 바꿨다.
 - 입력: CSV 대신 라벨 parquet을 엔티티로 Feast get_historical_features
 - 분할: train_test_split 대신 피처 단계가 적어 둔 split 칸
-- 모델 설정, 학습 루프, 지표, MLflow 기록은 같다. 그래야 post-2의 run과 나란히 비교된다.
+- 모델 설정, 학습 루프, 지표, MLflow 기록은 같다. 그래야 2편의 run과 나란히 비교된다.
 """
 import os
 import time
@@ -151,10 +151,10 @@ class URLClassifier:
 
     def save_model(self):
         # MLflow 3.17은 serialization_format을 주지 않으면 pt2(torch.export)로 저장하려 하고,
-        # 그러려면 input_example이 있어야 한다. post-2(mlflow 3.0.0)의 champion v1과 같은
+        # 그러려면 input_example이 있어야 한다. 2편(mlflow 3.0.0)의 champion v1과 같은
         # pickle로 저장해서, 추론 단계가 어느 버전이 champion이든 같은 방법으로 불러오게 한다.
         # 저장 전에 CPU로 옮긴다. mps에서 학습한 텐서를 그대로 피클하면 CPU Pod에서
-        # map_location 없이는 열리지 않는다(post-2의 v1이 그렇다).
+        # map_location 없이는 열리지 않는다(2편의 v1이 그렇다).
         self.model.to('cpu')
         info = mlflow.pytorch.log_model(self.model, name='model', serialization_format='pickle',
                                         registered_model_name=self.args.registered_model)
