@@ -4,11 +4,9 @@
 
 ## 글
 
-글을 게시하면 링크를 넣습니다.
-
-- 실습 인프라: 코드 변경 없음
-- 캡스톤 학습을 MLflow에 기록하기: `analysis/` 변경
-- Feast와 Kubeflow Pipelines: `kfp/` 추가
+- [블로그가 도는 k3s에 4, 5장 실습 환경 만들기](https://blog.somnitor.dev/posts/89/k3s-lab-for-mlflow-feast-kfp): 코드 변경 없음
+- [accuracy 0.845인데 malware는 하나도 못 맞혔다](https://blog.somnitor.dev/posts/90/capstone-training-with-mlflow): `analysis/` 변경
+- [학습은 offline store에서, 추론은 online store에서](https://blog.somnitor.dev/posts/91/capstone-feast-kfp-pipeline): `kfp/` 추가
 
 ## 1주차에서 바꾼 파일
 
