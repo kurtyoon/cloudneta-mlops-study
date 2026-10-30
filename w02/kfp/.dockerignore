@@ -1,4 +1,4 @@
-# 이미지에 들어가는 것만 빌드 컨텍스트로 보낸다(local/.work의 일회용 키 등은 보내지 않는다).
+# 이미지에 들어가는 파일만 빌드 컨텍스트로 보낸다. local/.work의 일회용 키가 섞이지 않게 한다.
 *
 !requirements.lock
 !requirements-kfp.lock

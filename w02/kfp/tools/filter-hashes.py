@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""`uv pip compile --generate-hashes` 결과에서 이미지가 실제로 설치할 파일의 해시만 남긴다.
+"""`uv pip compile --generate-hashes` 결과에서 linux aarch64 CPython 3.11 이미지가 설치할 파일의 해시만 남긴다.
 
-uv는 고정한 버전마다 모든 플랫폼의 wheel 해시를 적는다. 이미지는 linux aarch64의
-CPython 3.11뿐이라, 그 wheel(없으면 sdist)의 해시만 남긴다. 파일 이름과 sha256은
-PyPI JSON API에서 받는다. 쓸 수 있는 파일이 하나도 없는 패키지가 있으면 실패한다.
+파일 이름과 sha256은 PyPI JSON API에서 받는다.
 
 사용법: tools/filter-hashes.py <해시가 든 lock> > requirements.lock
 """
@@ -46,7 +44,7 @@ for block in blocks:
     available = {f: h for f, h in files(name, version).items() if h in listed}
     keep = sorted(h for f, h in available.items() if usable_wheel(f))
     if not keep:
-        # wheel이 없는 패키지(sdist만 있는 것)는 sdist 해시를 남긴다.
+        # wheel이 없으면 sdist 해시를 남긴다.
         keep = sorted(h for f, h in available.items() if f.endswith('.tar.gz'))
     if not keep:
         missing.append(f'{name}=={version}')

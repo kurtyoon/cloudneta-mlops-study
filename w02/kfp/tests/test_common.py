@@ -13,7 +13,7 @@ def test_password_is_removed_from_errors(monkeypatch):
         step()
     assert 'throwaway-pw-123' not in str(e.value)
     assert '[valkey password]' in str(e.value) and 'ValueError' in str(e.value)
-    assert e.value.__suppress_context__  # 원래 예외(비밀번호가 든 메시지)는 traceback에 나오지 않는다
+    assert e.value.__suppress_context__  # 비밀번호가 든 원래 예외는 traceback에 나오지 않는다
 
 
 def test_other_errors_pass_through(monkeypatch):

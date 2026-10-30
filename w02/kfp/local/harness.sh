@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 클러스터에 올리기 전에, 같은 이미지로 파이프라인 다섯 단계를 로컬 docker에서 돌린다.
-# S3(SeaweedFS), Valkey, MLflow를 일회용 값으로 띄우고, 네트워크 별칭으로 클러스터 안 이름을 준다.
-# 그래서 코드와 컴파일된 기본값을 바꾸지 않고 그대로 돈다. 키와 비밀번호는 up이 새로 만들어
-# local/.work/(git 무시)에 둔다.
+# 파이프라인 다섯 단계를 같은 이미지로 로컬 docker에서 돌린다.
+# S3, Valkey, MLflow를 일회용으로 띄우고 네트워크 별칭으로 클러스터 안 이름을 준다.
+# 그래서 코드와 컴파일된 기본값을 그대로 쓴다.
+# 키와 비밀번호는 up이 새로 만들어 git이 무시하는 local/.work/에 둔다.
 #
-#   local/harness.sh up <malicious_phish.csv>   서버 셋, 버킷, 원본 CSV 업로드
-#   local/harness.sh run <pipeline.yaml> [이름=값 ...]   컴파일된 파이프라인 실행(run_compiled.py)
-#   local/harness.sh admin <python 코드>   관리자 키로 boto3 코드 실행(확인용, 변수 s3)
+#   local/harness.sh up <malicious_phish.csv>   서버 셋을 띄우고 버킷을 만들어 원본 CSV를 올린다
+#   local/harness.sh run <pipeline.yaml> [이름=값 ...]   컴파일된 파이프라인을 run_compiled.py로 돌린다
+#   local/harness.sh admin <python 코드>   관리자 키의 boto3 클라이언트 s3로 코드를 돌린다
 #   local/harness.sh valkey <명령 ...>   valkey-cli
-#   local/harness.sh down   컨테이너, 네트워크, 볼륨, local/.work 삭제
+#   local/harness.sh down   컨테이너, 네트워크, 볼륨, local/.work를 지운다
 #
-# run은 PyYAML이 있는 파이썬이 필요하다(컴파일용 kfp venv면 된다): PYTHON=.venv-kfp/bin/python
+# run에는 PyYAML이 있는 파이썬이 필요하다. 컴파일용 venv면 된다: PYTHON=.venv-kfp/bin/python
 set -euo pipefail
 cd "$(dirname "$0")"
 work=$PWD/.work
@@ -31,8 +31,7 @@ up)
   csv=${2:?원본 CSV 경로}
   mkdir -p "$work"
   chmod 700 "$work"
-  # 클러스터의 s3-identities.json과 같은 권한, 일회용 키. kfp-pipeline은 capstone/ 아래와
-  # inference-datasets에만 쓸 수 있다.
+  # 클러스터의 s3-identities.json과 같은 권한으로 일회용 키를 만든다.
   for id in admin mlflow kfp; do
     printf '%s %s\n' "$(key 10)" "$(key 20)" > "$work/key-$id"
   done
@@ -67,8 +66,8 @@ EOF
   docker run -d --name capstone-valkey --network "$net" --network-alias valkey.feast.svc.cluster.local \
     --memory 256m -v "$work/valkey.conf:/etc/valkey/valkey.conf:ro" --env-file "$work/valkey.env" \
     valkey/valkey:9.1.2-trixie valkey-server /etc/valkey/valkey.conf >/dev/null
-  # MLflow는 클러스터처럼 아티팩트를 프록시해 S3 버킷 mlflow에 둔다. 호스트의 127.0.0.1:35000도 열어
-  # 노트북 쪽 클라이언트(2편 환경)가 붙을 수 있게 한다.
+  # MLflow는 클러스터처럼 아티팩트를 프록시해 S3 버킷 mlflow에 둔다.
+  # 호스트의 127.0.0.1:35000은 노트북의 MLflow 클라이언트가 붙는 주소다.
   docker run -d --name capstone-mlflow --network "$net" --network-alias mlflow.mlflow.svc.cluster.local \
     -p 127.0.0.1:35000:5000 -v capstone-mlflow-data:/mlflow \
     -e AWS_ACCESS_KEY_ID="$mk" -e AWS_SECRET_ACCESS_KEY="$ms" -e AWS_DEFAULT_REGION=us-east-1 \

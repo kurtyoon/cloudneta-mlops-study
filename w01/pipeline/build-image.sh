@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Build the serving image tagged <git commit>-<model hash>.
-# The commit alone is not enough: model/ is gitignored, so two builds of the
-# same commit can carry different models.
+# 서빙 이미지를 <커밋>-<모델 해시> 태그로 빌드한다.
+# model/은 git에 없어서 같은 커밋이라도 모델이 다를 수 있다.
 set -euo pipefail
 cd "$(dirname "$0")"
 image=${IMAGE:-drl-serve}
@@ -16,7 +15,7 @@ if [ -z "$(find model -type f ! -name .gitignore ! -name .DS_Store)" ]; then
 fi
 
 git_sha=$(git rev-parse HEAD)
-# Hash file names and contents together, NUL-separated so spaces are safe.
+# 파일 이름과 내용을 함께 해시한다.
 model_sha=$(find model -type f ! -name .gitignore ! -name .DS_Store -print0 \
   | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
 tag="${git_sha:0:8}-${model_sha:0:12}"

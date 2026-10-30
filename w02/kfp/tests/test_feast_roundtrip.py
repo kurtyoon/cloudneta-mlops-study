@@ -1,7 +1,6 @@
-"""token_ids(Array(Int64))가 오프라인과 온라인 스토어를 지나도 같은 정수 목록으로 돌아오는지.
+"""token_ids가 오프라인과 온라인 스토어를 지나도 같은 정수 목록으로 돌아오는지.
 
-클러스터 설정(S3, Valkey) 대신 로컬 parquet, 로컬 레지스트리, SQLite 온라인 스토어를 쓴다.
-온라인 값은 Redis와 같은 ValueProto로 직렬화된다. Valkey 쪽은 materialize 단계가 실행 중에 확인한다.
+S3와 Valkey 대신 로컬 parquet과 SQLite 온라인 스토어를 쓴다. SQLite도 Redis와 같은 ValueProto로 직렬화한다.
 """
 from feast import FeatureStore, FileSource, RepoConfig
 from feast.data_format import ParquetFormat
@@ -32,7 +31,7 @@ def test_token_ids_round_trip_both_stores(tmp_path, raw, tokenizer):
     store = local_store(tmp_path, tmp_path / 'url_tokens.parquet')
     expected = dict(zip(feats['url_id'], feats['token_ids']))
 
-    # 오프라인: 학습 단계와 같은 엔티티 df(라벨 parquet의 url_id, event_timestamp)
+    # 오프라인: 학습 단계와 같은 엔티티 df
     entity_df = labels[['url_id', 'event_timestamp', 'label', 'split']]
     hist = store.get_historical_features(entity_df=entity_df, features=FEATURES).to_df()
     assert len(hist) == len(labels) and hist['token_ids'].notna().all()
@@ -40,7 +39,7 @@ def test_token_ids_round_trip_both_stores(tmp_path, raw, tokenizer):
     counts = dict(zip(feats['url_id'], feats['token_count']))
     assert all(counts[i] == c for i, c in zip(hist['url_id'], hist['token_count']))
 
-    # 온라인: materialize 단계와 같은 구간 → online 행만 올라간다
+    # 온라인: materialize 단계와 같은 구간이면 online 행만 올라간다
     start, end = online_window(labels)
     store.materialize(start_date=start, end_date=end, feature_views=[config.FEATURE_VIEW])
     online_ids = labels.loc[labels['online'], 'url_id'].tolist()

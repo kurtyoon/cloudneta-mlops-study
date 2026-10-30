@@ -71,7 +71,7 @@ class URLClassifier:
         self.model.to(self.device)
 
     def load_and_prepare_data(self):
-        # w02: URL data only (preprocessing.py no longer writes feature_ids.csv).
+        # URL 데이터만 쓴다. preprocessing.py는 기본으로 특징 데이터를 만들지 않는다.
         url_data = pd.read_csv(self.url_file)
 
         # Parse and prepare tensors
@@ -80,14 +80,13 @@ class URLClassifier:
 
         max_length = self.args.max_length
         self.truncated = int((url_data['token_ids'].apply(len) > max_length).sum())
-        # cut at max_length, then pad with 0 until max_length
         url_data['token_ids'] = url_data['token_ids'].apply(lambda x: x[:max_length] + [0] * (max_length - len(x[:max_length])))
 
         # token_ids 리스트를 텐서로 변환
         url_data['input_ids'] = url_data['token_ids'].apply(lambda ids: torch.tensor(ids, dtype=torch.long))
 
         # 이미 텐서로 변환된 input_ids를 사용하여 attention_mask와 token_type_ids를 생성
-        # (패딩까지 1인 attention_mask는 원본 그대로 둔다. 4주차에 다룬다.)
+        # 원본과 같이 패딩 자리도 attention_mask가 1이다.
         url_data['attention_mask'] = url_data['input_ids'].apply(lambda tensor: torch.ones_like(tensor))
         url_data['token_type_ids'] = url_data['input_ids'].apply(lambda tensor: torch.zeros_like(tensor))
 

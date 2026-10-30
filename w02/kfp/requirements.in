@@ -1,9 +1,6 @@
-# 파이프라인의 다섯 단계가 함께 쓰는 이미지 하나의 패키지.
-# requirements.lock은 이 목록을 linux aarch64, CPython 3.11로 푼 결과다(lock 헤더의 명령).
+# 컴포넌트 이미지의 패키지. requirements.lock은 tools/lock.sh로 만든다.
 
-# Feast 0.40.1과 함께 돌아가는 것이 확인된 2024-12 기준 버전들.
-# 날짜를 고정하지 않고 풀면 pyarrow가 numpy 2를 요구하는 버전으로 올라가고,
-# feast 0.40.1은 numpy<2라서 import부터 실패한다.
+# 고정하지 않으면 pyarrow가 numpy 2를 요구하는 버전으로 올라가 numpy<2인 feast 0.40.1이 import부터 실패한다.
 feast[redis]==0.40.1
 redis==4.6.0
 s3fs==2024.10.0
@@ -15,11 +12,10 @@ pyarrow==18.1.0
 numpy==1.26.4
 dask==2024.12.1
 
-# 모델: 2편 학습 환경(analysis/classifier)과 같은 버전.
-# champion v1은 2편에서 torch.save로 피클된 모델이라, 같은 torch와 transformers여야 다시 불러온다.
+# analysis/classifier와 같은 버전이다. champion은 피클된 모델이라 같은 torch와 transformers라야 불러온다.
 torch==2.3.0
 transformers==4.40.1
 scikit-learn==1.4.2
 
-# MLflow 클라이언트: 서버와 같은 3.17.2. 서버 쪽 패키지(flask, alembic 등) 없는 클라이언트만 설치한다.
+# MLflow 서버와 같은 버전의 클라이언트만 설치한다.
 mlflow-skinny==3.17.2
