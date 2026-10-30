@@ -1,12 +1,9 @@
-"""컴파일한 pipeline.yaml을 KFP에 올리고 run을 만든다.
+"""컴파일한 pipeline.yaml을 KFP에 올리고 run을 만든다. 같은 이름의 파이프라인이 있으면 새 버전으로 올린다.
 
-KFP 공개 주소는 authentik forward auth 뒤에 있고, SDK는 요청마다 HTTP Basic(authentik 사용자 이름과
-app password)을 보낸다. 주소와 로그인은 환경 변수로만 받는다.
+KFP 주소는 authentik forward auth 뒤에 있어 요청마다 authentik 사용자 이름과 app password를 HTTP Basic으로 보낸다.
 
     KFP_HOST=https://<kfp 호스트> KFP_USERNAME=<사용자> KFP_PASSWORD=<app password> \
         .venv-kfp/bin/python tools/submit.py --package pipeline.yaml [--param sample_size=40000 ...] [--wait]
-
-같은 이름의 파이프라인이 있으면 새 버전으로 올린다. 파라미터는 지정한 것만 바꾸고 나머지는 컴파일된 기본값을 쓴다.
 """
 import argparse
 import base64
@@ -28,7 +25,7 @@ class AuthentikBasic(TokenCredentialsBase):
 
 
 def parse_param(text):
-    # 'sample_size=40000' → ('sample_size', 40000). 숫자로 읽히면 숫자로 넘긴다.
+    # 숫자로 읽히는 값은 숫자로 넘긴다.
     name, _, value = text.partition('=')
     for cast in (int, float):
         try:

@@ -1,11 +1,8 @@
 #!/bin/sh
-# requirements.in을 이미지용 lock 두 개로 푼다. 이미지는 linux/arm64, CPython 3.11 하나뿐이다.
-# - requirements.lock: 2024-12-21 기준(mlflow-skinny만 서버와 같은 3.17.2를 위해 2026-10-26 기준).
-#   torch는 PyPI의 aarch64 wheel이 CPU 전용이라 다른 인덱스가 필요 없다.
-# - requirements-kfp.lock: KFP 경량 컴포넌트의 실행기(kfp.dsl.executor_main)만 쓰도록
-#   kfp 2.9.0을 의존성 없이 넣는다. KFP가 기본으로 Pod 시작 때마다 하는
-#   `pip install kfp==2.9.0 --no-deps`를 이미지 빌드 때 한 번, 해시를 확인하며 한다.
-# 둘 다 tools/filter-hashes.py로 linux aarch64 cp311 파일의 해시만 남긴다(PyPI JSON API).
+# requirements.in을 linux/arm64, CPython 3.11 이미지용 lock 두 개로 푼다.
+# mlflow-skinny만 MLflow 서버 버전에 맞추려고 날짜 기준을 따로 준다.
+# torch는 PyPI의 aarch64 wheel이 CPU 전용이라 다른 인덱스가 필요 없다.
+# requirements-kfp.lock은 KFP가 기본으로 Pod 시작 때 하는 pip install kfp --no-deps를 이미지 빌드로 옮긴다.
 set -eu
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)

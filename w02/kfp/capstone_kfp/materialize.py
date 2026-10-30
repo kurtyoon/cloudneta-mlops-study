@@ -1,9 +1,7 @@
-"""4단계: materialize. 오프라인 스토어의 피처를 온라인 스토어(Valkey)에 올린다.
+"""4단계: materialize. 추론 요청으로 쓸 online 행의 피처만 Valkey에 올린다.
 
-Valkey는 CH4, CH5 프로젝트와 같이 쓰고 maxmemory 96 MB, noeviction이다(꽉 차면 쓰기가 실패한다).
-그래서 추론 요청으로 쓸 행(라벨 parquet의 online)만 올린다. materialize는 기간으로만 고르므로,
-피처 단계가 그 행들에만 이번 run 시각을 주었다. 올리기 전에 이 뷰의 이전 키를 지워
-Valkey에는 마지막 run의 키만 남긴다. 지우는 범위는 프로젝트 capstone의 url_tokens 키뿐이다.
+Valkey는 다른 Feast 프로젝트와 같이 쓰고 noeviction이라 꽉 차면 쓰기가 실패한다.
+그래서 올리기 전에 이 뷰의 이전 키를 지워 마지막 run의 키만 남긴다.
 """
 from datetime import timedelta
 
@@ -19,7 +17,7 @@ def online_window(labels):
 
 
 def same_tokens(offline, online):
-    """오프라인(parquet)과 온라인(Valkey)에서 읽은 토큰 id가 같은 정수 목록인지."""
+    """오프라인과 온라인 스토어에서 읽은 토큰 id가 같은 정수 목록인지."""
     return online is not None and [int(x) for x in offline] == [int(x) for x in online]
 
 
@@ -28,8 +26,8 @@ def read_online(store, url_ids):
 
 
 def footprint(store):
-    """Valkey에서 프로젝트 capstone의 키 수와 MEMORY USAGE 합(바이트).
-    Feast의 Redis 키는 엔티티 키 직렬화 뒤에 프로젝트 이름이 붙는다(feast 0.40.1)."""
+    """Valkey에서 이 프로젝트의 키 수와 MEMORY USAGE 바이트 합.
+    Feast 0.40.1의 Redis 키는 엔티티 키 직렬화 뒤에 프로젝트 이름이 붙는다."""
     from feast.infra.online_stores.redis import RedisOnlineStore
 
     client = RedisOnlineStore()._get_client(store.config.online_store)
@@ -56,7 +54,7 @@ def run():
     matched = sum(same_tokens(features.at[i, 'token_ids'], t) for i, t in zip(got['url_id'], got['token_ids']))
     if matched != len(online_ids):
         raise RuntimeError(f'온라인 스토어 값이 parquet과 다르다: {matched}/{len(online_ids)}')
-    # online이 아닌 행은 올라가지 않았어야 한다(기간으로 고른 결과). 몇 개만 본다.
+    # online이 아닌 행은 올라가지 않았어야 한다. 몇 개만 본다.
     others = labels.loc[~labels['online'], 'url_id'].head(5).tolist()
     if others and any(t is not None for t in read_online(store, others)['token_ids']):
         raise RuntimeError('online이 아닌 행이 온라인 스토어에 올라갔다')

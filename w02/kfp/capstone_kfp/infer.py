@@ -1,9 +1,6 @@
 """5단계: 온라인 추론. 요청 URL의 피처를 온라인 스토어에서 읽고 champion 모델로 분류한다.
 
-요청은 피처 단계가 고른 online 행(학습에 쓰지 않은 test URL)이다. 실시간 요청에는 URL만 온다고 보고,
-엔티티 키 url_id를 URL에서 다시 계산해 Valkey를 찾는다. 모델은 별칭으로 찾는다
-(models:/capstone-url-classifier@champion). 승격 단계에서 새 버전이 기준을 넘지 못했으면
-기존 champion(2편의 v1)이 예측한다.
+실시간 요청에는 URL만 온다고 보고 url_id를 URL에서 다시 계산해 Valkey를 찾는다.
 """
 import io
 import json
@@ -27,7 +24,7 @@ def champion_model(tracking_uri, model_name):
     version = client.get_model_version_by_alias(model_name, config.CHAMPION)
     params = client.get_run(version.run_id).data.params if version.run_id else {}
     mlflow.set_tracking_uri(tracking_uri)
-    # map_location: 2편의 v1은 노트북의 mps에서 학습한 채로 피클돼 있다. CPU Pod에서 열려면 필요하다.
+    # mps에서 학습한 채로 피클된 버전도 CPU Pod에서 열리게 한다.
     model = mlflow.pytorch.load_model(f'models:/{model_name}@{config.CHAMPION}', map_location='cpu')
     model.eval()
     return version.version, int(params.get('max_length', 128)), model

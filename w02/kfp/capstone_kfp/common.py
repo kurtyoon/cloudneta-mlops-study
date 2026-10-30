@@ -1,7 +1,6 @@
 """여러 단계가 같이 쓰는 S3 입출력과 Feast 스토어.
 
-S3 키는 환경 변수 AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY로 받는다. 파이프라인에서는
-Secret kfp-pipeline-s3가 넣어 주고, 파라미터로는 받지 않는다(KFP는 파라미터를 평문으로 남긴다).
+S3 키는 환경 변수 AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY로만 받는다.
 """
 import functools
 import hashlib
@@ -18,8 +17,8 @@ REPO_DIR = Path(__file__).resolve().parent / 'feature_repo'
 
 
 def _s3_env():
-    # boto3, Feast의 S3 레지스트리(FEAST_S3_ENDPOINT_URL), s3fs와 pyarrow가 모두 같은
-    # 클러스터 안 엔드포인트와 리전을 쓰게 한다. SeaweedFS는 리전을 보지 않는다.
+    # boto3, Feast 레지스트리, s3fs, pyarrow가 모두 같은 엔드포인트와 리전을 쓰게 한다.
+    # SeaweedFS는 리전을 보지 않는다.
     os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
     os.environ.setdefault('FEAST_S3_ENDPOINT_URL', config.S3_ENDPOINT)
 
@@ -53,7 +52,7 @@ def read_parquet(uri):
 
 
 def write_parquet(df, uri):
-    """parquet으로 올리고 그 바이트의 sha256을 돌려준다(MLflow에 데이터 버전으로 남긴다)."""
+    """parquet으로 올리고 그 바이트의 sha256을 돌려준다."""
     buf = io.BytesIO()
     df.to_parquet(buf, index=False)
     data = buf.getvalue()
@@ -69,9 +68,9 @@ def feature_store():
 
 
 def hides_valkey_password(func):
-    """단계 함수 전체를 감싼다. Feast는 설정 오류 메시지에 펼친 connection_string(비밀번호 포함)을
-    넣기도 하고(online_store를 잘못 적었을 때, tests/test_common.py), 그 오류는 설정을 처음 쓰는
-    곳에서 늦게 난다. KFP는 Pod 로그를 보관하므로, 비밀번호를 지운 메시지의 예외로 바꿔 올린다."""
+    """단계 함수에서 난 예외 메시지의 Valkey 비밀번호를 지운다.
+
+    Feast의 설정 오류 메시지에는 비밀번호가 펼쳐진 connection_string이 들어가고, KFP는 Pod 로그를 보관한다."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:

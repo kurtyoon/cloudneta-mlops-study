@@ -19,7 +19,6 @@ def load(path):
 
 
 def stacked(df):
-    # position='stack': 구간마다 클래스별 건수를 쌓는다.
     return (
         so.Plot(df, x='length', color='type')
         .add(so.Bar(), so.Count(), so.Stack())
@@ -30,9 +29,8 @@ def stacked(df):
 
 
 def filled(df):
-    # position='fill': 구간마다 비율로 바꿔 막대 높이를 1로 맞춘 뒤 쌓는다.
-    # 비율은 pandas로 먼저 계산한다. so.Hist(common_norm=['x'])는 'x'를
-    # 그룹 변수로 받지 않는다는 경고를 낸다(seaborn 0.13.2).
+    # 비율은 pandas로 계산한다. seaborn 0.13.2의 so.Hist(common_norm=['x'])는
+    # 'x'를 그룹 변수로 받지 않는다는 경고를 낸다.
     shares = (df.groupby(['length', 'type'], observed=False).size()
               .groupby(level='length', observed=False).transform(lambda n: n / n.sum())
               .rename('share').reset_index())

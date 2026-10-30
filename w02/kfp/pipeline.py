@@ -1,18 +1,15 @@
 """캡스톤 악성 URL 분류기를 Feast와 Kubeflow Pipelines로 잇는 파이프라인.
 
-학습(2, 3)과 materialize(4)는 피처 생성(1) 뒤에 따로 돌고, 온라인 추론(5)은 승격과 materialize가
-모두 끝난 뒤에 돈다.
-
-1. 피처 생성: 원본 CSV(S3) → 표본 → 토큰 id → 오프라인 스토어(parquet) + 라벨 parquet → feast apply
+1. 피처 생성: S3의 원본 CSV → 표본 → 토큰 id → 오프라인 스토어와 라벨 parquet → feast apply
 2. 학습: 라벨 parquet을 엔티티로 get_historical_features → 작은 BERT → MLflow run, 모델 등록
 3. 승격: macro F1이 기준 이상이면 champion 별칭을 새 버전으로
 4. materialize: 추론 요청으로 쓸 행만 Valkey에 올린다
-5. 온라인 추론: Valkey에서 get_online_features → champion 모델 → 예측을 S3에, 지표를 KFP 출력으로
+5. 온라인 추론: Valkey에서 get_online_features → champion 모델 → 예측은 S3에, 지표는 KFP 출력으로
 
-각 단계의 코드는 이미지 안의 capstone_kfp 패키지에 있고, 아래 컴포넌트 함수는 그 함수를 부르기만 한다.
-kfp는 이미지에 해시로 고정해 넣었으므로(Dockerfile) Pod가 시작할 때 pip install을 하지 않는다.
+2와 4는 1 뒤에 나란히 돌고, 5는 3과 4가 모두 끝난 뒤에 돈다. 단계 코드는 이미지의 capstone_kfp에 있다.
+kfp도 이미지에 들어 있어 Pod가 시작할 때 pip install을 하지 않는다.
 
-컴파일(노트북, kfp 2.9.0 + kfp-kubernetes 1.3.0):
+컴파일:
     uv venv --python 3.11 .venv-kfp && uv pip install --python .venv-kfp/bin/python kfp==2.9.0 kfp-kubernetes==1.3.0
     .venv-kfp/bin/python pipeline.py --image <레지스트리>/<owner>/capstone-kfp:<커밋 sha> --out pipeline.yaml
 """
@@ -108,8 +105,7 @@ def make_pipeline(image):
             num_heads: int = 4,
             epochs: int = 2,
             batch_size: int = 16,
-            # 2편에서 champion이 된 run(lr-1e-4)의 학습률. classifier.py 기본값 1e-5는 랜덤 초기화한
-            # 작은 모델에는 느렸다(3 epoch 뒤 macro F1 0.846).
+            # classifier.py 기본값 1e-5는 랜덤 초기화한 작은 모델에 너무 느리다.
             lr: float = 1e-4,
             macro_f1_threshold: float = 0.9,
             tracking_uri: str = config.MLFLOW_TRACKING_URI,
@@ -132,22 +128,14 @@ def make_pipeline(image):
                             online_keys=online.outputs['keys'], kfp_run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
                             tracking_uri=tracking_uri, registered_model=registered_model)
 
-        # S3 키는 S3를 읽고 쓰는 단계에만, Valkey 비밀번호는 온라인 스토어를 여는 단계에만 준다.
-        # 승격은 MLflow만 부르므로(클러스터 안에서는 로그인 없음) 둘 다 받지 않는다.
+        # Secret은 그 값을 쓰는 단계에만 준다. 승격은 MLflow만 부르므로 둘 다 받지 않는다.
         for task in (feats, trained, online, inferred):
             kubernetes.use_secret_as_env(task, secret_name=S3_SECRET, secret_key_to_env=S3_ENV)
         for task in (feats, online, inferred):
             kubernetes.use_secret_as_env(task, secret_name=VALKEY_SECRET, secret_key_to_env=VALKEY_ENV)
 
-        # 요청과 상한을 같이 준다. 상한 없이 2Gi보다 큰 요청은 LimitRange의 기본 상한(2Gi)에 걸려 거부된다.
-        # 요청은 namespace 쿼터(requests.cpu 2, requests.memory 6Gi)에 들어가고, 학습과 materialize는
-        # 같이 돈다. 로컬 docker에서 기본 파라미터로 잰 최대 메모리: 피처 생성 0.44 GiB, 학습 0.93 GiB,
-        # materialize 0.14 GiB, 추론 0.54 GiB.
-        #
-        # CPU에도 상한을 준다. 노드 하나(4코어)를 모든 앱이 같이 쓰는데, 상한 없이 처음 돌린 학습은 torch가
-        # 코어 수만큼 스레드를 열어 4코어를 모두 쓰고 노드의 다른 앱이 응답하지 못했다. torch 스레드 수는
-        # OMP_NUM_THREADS로 상한과 맞춘다(train.limit_threads). 상한만 주면 스레드 4개가 2코어를 나눠 쓰며
-        # 서로 기다린다.
+        # 상한 없이 2Gi보다 큰 요청을 주면 LimitRange의 기본 상한에 걸려 거부되므로 상한을 같이 준다.
+        # torch는 노드의 코어 수만큼 스레드를 열므로 OMP_NUM_THREADS를 CPU 상한에 맞춘다.
         feats.set_cpu_request('250m').set_cpu_limit('1').set_memory_request('512Mi').set_memory_limit('1Gi')
         trained.set_cpu_request('1').set_cpu_limit('2').set_memory_request('2Gi').set_memory_limit('2Gi')
         trained.set_env_variable('OMP_NUM_THREADS', '2')
@@ -156,7 +144,7 @@ def make_pipeline(image):
         inferred.set_cpu_request('250m').set_cpu_limit('1').set_memory_request('768Mi').set_memory_limit('1536Mi')
         inferred.set_env_variable('OMP_NUM_THREADS', '1')
 
-        # 모든 단계가 바깥 상태(S3, 레지스트리, MLflow, Valkey)를 바꾸므로 캐시하지 않는다.
+        # 모든 단계가 S3, 레지스트리, MLflow, Valkey의 상태를 바꾸므로 캐시하지 않는다.
         for task, name in ((feats, '1. 피처 생성'), (trained, '2. 학습'), (promoted, '3. 승격'),
                            (online, '4. materialize'), (inferred, '5. 온라인 추론')):
             task.set_caching_options(False)

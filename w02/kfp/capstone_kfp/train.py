@@ -1,9 +1,7 @@
 """2단계: 학습. 오프라인 스토어에서 피처를 받아 작은 BERT를 학습하고 MLflow에 남긴다.
 
-analysis/classifier/classifier.py를 그대로 옮기고 데이터를 읽는 부분만 바꿨다.
-- 입력: CSV 대신 라벨 parquet을 엔티티로 Feast get_historical_features
-- 분할: train_test_split 대신 피처 단계가 적어 둔 split 칸
-- 모델 설정, 학습 루프, 지표, MLflow 기록은 같다. 그래야 2편의 run과 나란히 비교된다.
+analysis/classifier/classifier.py에서 데이터를 읽는 부분만 바꿨다. 입력은 Feast
+get_historical_features로, 분할은 피처 단계가 적어 둔 split 칸으로 받는다.
 """
 import os
 import time
@@ -25,8 +23,7 @@ FEATURES = [f'{config.FEATURE_VIEW}:token_ids', f'{config.FEATURE_VIEW}:token_co
 
 
 def limit_threads():
-    """torch의 스레드 수를 OMP_NUM_THREADS(파이프라인이 CPU 상한과 같은 값으로 준다)에 맞춘다.
-    값이 없으면 torch는 노드의 코어 수만큼 스레드를 연다."""
+    """torch의 스레드 수를 OMP_NUM_THREADS에 맞춘다. 값이 없으면 torch는 노드의 코어 수만큼 스레드를 연다."""
     n = int(os.environ.get('OMP_NUM_THREADS', '0'))
     if n > 0:
         torch.set_num_threads(n)
@@ -42,9 +39,9 @@ def pick_device():
 
 
 def model_inputs(token_ids, max_length):
-    """classifier.py와 같은 입력: max_length에서 자르고 0으로 채운다.
-    (패딩까지 1인 attention_mask는 원본 그대로 둔다. 4주차에 다룬다.)
-    추론 단계도 이 함수로 입력을 만든다."""
+    """classifier.py와 같이 max_length에서 자르고 0으로 채운다. 추론 단계도 이 함수를 쓴다.
+
+    원본과 같이 패딩 자리도 attention_mask가 1이다."""
     ids = [list(x)[:max_length] for x in token_ids]
     input_ids = torch.tensor([x + [0] * (max_length - len(x)) for x in ids], dtype=torch.long)
     return {
@@ -83,13 +80,13 @@ class URLClassifier:
         self.model.to(self.device)
 
     def load_and_prepare_data(self):
-        # 엔티티 df: 라벨 parquet의 url_id와 event_timestamp. label, split 칸은 결과에 그대로 따라온다.
+        # label, split 칸은 조인 결과에 그대로 따라온다.
         entity_df = common.read_parquet(config.LABELS_URI)[['url_id', 'event_timestamp', 'label', 'split']]
         store = common.feature_store()
         data = store.get_historical_features(entity_df=entity_df, features=FEATURES).to_df()
         if data['token_ids'].isna().any():
             raise RuntimeError(f'오프라인 스토어에 없는 url_id {int(data["token_ids"].isna().sum())}개')
-        # 조인 결과의 행 순서는 정해져 있지 않다. 같은 run이면 같은 순서가 되도록 정렬한다.
+        # 조인 결과의 행 순서가 정해져 있지 않아 정렬한다.
         data = data.sort_values('url_id').reset_index(drop=True)
 
         self.truncated = int((data['token_count'] > self.args.max_length).sum())
@@ -150,11 +147,8 @@ class URLClassifier:
         mlflow.log_dict(m['per_class'], 'per_class_metrics.json')
 
     def save_model(self):
-        # MLflow 3.17은 serialization_format을 주지 않으면 pt2(torch.export)로 저장하려 하고,
-        # 그러려면 input_example이 있어야 한다. 2편(mlflow 3.0.0)의 champion v1과 같은
-        # pickle로 저장해서, 추론 단계가 어느 버전이 champion이든 같은 방법으로 불러오게 한다.
-        # 저장 전에 CPU로 옮긴다. mps에서 학습한 텐서를 그대로 피클하면 CPU Pod에서
-        # map_location 없이는 열리지 않는다(2편의 v1이 그렇다).
+        # serialization_format이 없으면 MLflow 3.17은 input_example이 필요한 pt2로 저장한다.
+        # 기존 champion과 같은 pickle로 저장하고, CPU Pod에서 map_location 없이 열리게 CPU로 옮긴다.
         self.model.to('cpu')
         info = mlflow.pytorch.log_model(self.model, name='model', serialization_format='pickle',
                                         registered_model_name=self.args.registered_model)
@@ -180,8 +174,7 @@ def run(args, features_sha256, labels_sha256, kfp_run_id):
     sample_size, n_online, tracking_uri, experiment, registered_model."""
     threads = limit_threads()
     mlflow.set_tracking_uri(args.tracking_uri)
-    # 실험이 없으면 서버 기본 위치(mlflow-artifacts:/)로 만든다. s3:// 위치를 주면 클라이언트가
-    # S3 키를 직접 써야 하므로 주지 않는다.
+    # 실험은 서버 기본 아티팩트 위치로 만든다. s3:// 위치면 클라이언트가 S3 키를 직접 써야 한다.
     mlflow.set_experiment(args.experiment)
     with mlflow.start_run(run_name=f'kfp-{kfp_run_id[:8]}') as active:
         mlflow.set_tags({'kfp_run_id': kfp_run_id, 'feast_project': 'capstone',

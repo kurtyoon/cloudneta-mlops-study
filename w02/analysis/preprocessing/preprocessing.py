@@ -8,8 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 
-# Same revision as the serving image (pipeline/Dockerfile), so training and
-# serving cut URLs into the same tokens.
+# 서빙 이미지 pipeline/Dockerfile과 같은 revision이라야 학습과 서빙의 토큰이 같다.
 TOKENIZER_REVISION = 'cd5ef92a9fb2f889e972770a36d4ed042daf221e'
 
 
@@ -20,7 +19,6 @@ class Preprocessing:
     def __init__(self, url_path, feature_path=None, sample_size=None, seed=42):
         self.url = pd.read_csv(url_path)
         if sample_size:
-            # Keep the class ratio of the full set (benign 66%, malware 5%).
             self.url, _ = train_test_split(self.url, train_size=sample_size,
                                            stratify=self.url['type'], random_state=seed)
         self.feature = None
@@ -83,9 +81,8 @@ class Preprocessing:
 
 
 if __name__ == '__main__':
-    # w02: URL data only, as serving takes only a URL. The website feature data
-    # (dataset_full.csv) and its SMOTE step are left out; pass --feature-path to
-    # run them as before.
+    # 서빙은 URL만 받으므로 기본으로 URL 데이터만 쓴다.
+    # 특징 데이터와 SMOTE 단계는 --feature-path를 줄 때만 돈다.
     parser = argparse.ArgumentParser()
     parser.add_argument('--url-path', default='data/malicious_phish.csv')
     parser.add_argument('--feature-path', default=None)

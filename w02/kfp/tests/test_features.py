@@ -53,7 +53,7 @@ def test_online_rows_are_stratified_test_rows(raw):
     split = features.assign_split(labels, seed=42)
     online = features.pick_online(labels, split, n_online=40, seed=42)
     assert online.sum() == 40 and set(split[online]) == {'test'}
-    # 클래스마다 test 안의 비율대로(반올림 차이 1까지), 네 클래스 모두 들어간다
+    # 클래스마다 test 안의 비율대로 들어가고 반올림 차이는 1까지다. 네 클래스가 모두 들어간다
     test_counts = np.bincount(labels[split == 'test'], minlength=4)
     assert (np.abs(np.bincount(labels[online], minlength=4) - test_counts * 40 / 80) <= 1).all()
     assert (np.bincount(labels[online], minlength=4) > 0).all()
@@ -69,8 +69,8 @@ def test_tokenize_truncates_without_padding(tokenizer):
 
 
 def test_baked_tokenizer_matches_post2():
-    """이미지의 토크나이저가 2편 환경(transformers 4.40.1, 같은 revision)과 같은 id를 낸다.
-    기대값은 2편의 venv에서 BertTokenizer.from_pretrained('bert-base-cased', revision=...)로 뽑았다."""
+    """이미지의 토크나이저가 analysis/의 학습 환경과 같은 id를 낸다.
+    기대값은 transformers 4.40.1에서 같은 revision의 BertTokenizer로 뽑았다."""
     from transformers import BertTokenizer
 
     t = BertTokenizer.from_pretrained(config.BERT_DIR)
@@ -96,6 +96,6 @@ def test_frames_put_only_online_rows_in_the_materialize_window(raw, tokenizer):
 def test_model_inputs_pad_like_classifier_py():
     x = model_inputs([[5, 6, 7], [1, 2, 3, 4, 5, 6]], max_length=4)
     assert x['input_ids'].tolist() == [[5, 6, 7, 0], [1, 2, 3, 4]]
-    # 패딩까지 1인 attention_mask: classifier.py 그대로(4주차에 다룬다)
+    # classifier.py와 같이 패딩 자리도 attention_mask가 1이다
     assert x['attention_mask'].tolist() == [[1, 1, 1, 1], [1, 1, 1, 1]]
     assert x['token_type_ids'].sum() == 0
