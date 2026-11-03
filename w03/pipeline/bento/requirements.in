@@ -1,0 +1,10 @@
+# Yatai 1.x는 BentoML 1.0, 1.1만 지원한다.
+bentoml==1.1.10
+
+# champion은 pickle된 BertForSequenceClassification이라 학습 이미지와 버전을 맞춘다
+torch==2.3.0
+transformers==4.40.1
+numpy==1.26.4
+
+# BentoML 1.1.10이 import하는 fs가 pkg_resources를 쓴다
+setuptools<81

@@ -1,0 +1,21 @@
+# 컴포넌트 이미지의 패키지. requirements.lock은 tools/lock.sh로 만든다.
+
+# 고정하지 않으면 pyarrow가 numpy 2를 요구하는 버전으로 올라가 numpy<2인 feast 0.40.1이 import부터 실패한다.
+feast[redis]==0.40.1
+redis==4.6.0
+s3fs==2024.10.0
+boto3==1.35.36
+fsspec==2024.10.0
+aiobotocore==2.15.2
+pandas==2.2.3
+pyarrow==18.1.0
+numpy==1.26.4
+dask==2024.12.1
+
+# analysis/classifier와 같은 버전이다. champion은 피클된 모델이라 같은 torch와 transformers라야 불러온다.
+torch==2.3.0
+transformers==4.40.1
+scikit-learn==1.4.2
+
+# MLflow 서버와 같은 버전의 클라이언트만 설치한다.
+mlflow-skinny==3.17.2
