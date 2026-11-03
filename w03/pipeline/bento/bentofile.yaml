@@ -1,4 +1,4 @@
-service: "service:svc"
+service: "service:CapstoneUrlClassifier"
 labels:
   owner: "drl"
   project: "malicious_url_classifier"
@@ -9,4 +9,5 @@ python:
   requirements_txt: "requirements.lock"
   lock_packages: false
 docker:
-  python_version: "3.11"
+  # kfp/Dockerfile과 같은 베이스. 지정하지 않으면 태그만 적은 python:3.11-slim이다.
+  base_image: "python:3.11.18-slim-trixie@sha256:82209229d3fda30d71e603ec95bb4bea0476635ba6df3df2e32284e036654f51"

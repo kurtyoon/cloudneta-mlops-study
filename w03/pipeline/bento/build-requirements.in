@@ -1,4 +1,4 @@
-# build.py, bentoml build, bentoml serve를 돌리는 노트북 환경. 이미지와 같은 버전에 MLflow 클라이언트만 더한다.
+# build.py, bentoml build, bentoml serve를 돌리는 환경. 노트북과 Gitea 러너가 같이 쓴다.
 -r requirements.in
 -c requirements.lock
 
