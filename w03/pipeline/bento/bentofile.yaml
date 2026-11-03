@@ -1,0 +1,12 @@
+service: "service:svc"
+labels:
+  owner: "drl"
+  project: "malicious_url_classifier"
+description: "Malicious URL Classifier"
+include:
+  - "/service.py"
+python:
+  requirements_txt: "requirements.lock"
+  lock_packages: false
+docker:
+  python_version: "3.11"
