@@ -31,3 +31,5 @@ curl -X POST localhost:3000/api/predict -H 'content-type: application/json' -d '
 ```
 
 lock은 `requirements.in`, `build-requirements.in`을 고친 뒤 각 lock 파일 머리말의 명령으로 다시 만듭니다.
+
+전체 diff는 [PR #4](https://github.com/kurtyoon/cloudneta-mlops-study/pull/4)에서 볼 수 있습니다.
