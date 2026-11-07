@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 파이프라인 다섯 단계를 같은 이미지로 로컬 docker에서 돌린다.
-# S3, Valkey, MLflow를 일회용으로 띄우고 네트워크 별칭으로 클러스터 안 이름을 준다.
+# 파이프라인 여섯 단계를 같은 이미지로 로컬 docker에서 돌린다.
+# S3, Valkey, MLflow, Evidently를 일회용으로 띄우고 네트워크 별칭으로 클러스터 안 이름을 준다.
 # 그래서 코드와 컴파일된 기본값을 그대로 쓴다.
 # 키와 비밀번호는 up이 새로 만들어 git이 무시하는 local/.work/에 둔다.
 #
@@ -32,10 +32,11 @@ up)
   mkdir -p "$work"
   chmod 700 "$work"
   # 클러스터의 s3-identities.json과 같은 권한으로 일회용 키를 만든다.
-  for id in admin mlflow kfp; do
+  for id in admin mlflow kfp evidently; do
     printf '%s %s\n' "$(key 10)" "$(key 20)" > "$work/key-$id"
   done
   read -r ak as < "$work/key-admin"; read -r mk ms < "$work/key-mlflow"; read -r kk ks < "$work/key-kfp"
+  read -r _ es < "$work/key-evidently"
   cat > "$work/s3.json" <<EOF
 {"identities": [
  {"name": "admin", "credentials": [{"accessKey": "$ak", "secretKey": "$as"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]},
@@ -50,9 +51,11 @@ EOF
   vp=$(key 16)
   printf 'requirepass %s\nmaxmemory 96mb\nmaxmemory-policy noeviction\nsave ""\n' "$vp" > "$work/valkey.conf"
   printf 'REDISCLI_AUTH=%s\n' "$vp" > "$work/valkey.env"
+  printf 'EVIDENTLY_SECRET=%s\n' "$es" > "$work/evidently.env"
   cat > "$work/secrets.json" <<EOF
 {"kfp-pipeline-s3": {"AWS_ACCESS_KEY_ID": "$kk", "AWS_SECRET_ACCESS_KEY": "$ks"},
- "feast-valkey": {"VALKEY_PASSWORD": "$vp"}}
+ "feast-valkey": {"VALKEY_PASSWORD": "$vp"},
+ "evidently-secret": {"EVIDENTLY_SECRET": "$es"}}
 EOF
   chmod 600 "$work"/*
   chmod 644 "$work/s3.json" "$work/valkey.conf"  # 컨테이너 안의 서버 사용자가 읽는다
@@ -76,6 +79,14 @@ EOF
     -e MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false \
     ghcr.io/mlflow/mlflow:v3.17.2-full mlflow server --host=0.0.0.0 --port=5000 --workers=2 \
     --backend-store-uri sqlite:////mlflow/mlflow.db --serve-artifacts --artifacts-destination=s3://mlflow >/dev/null
+  # Evidently UI는 클러스터와 같은 이미지(다이제스트)와 인자다. --secret을 주지 않는다. 서버는 그 인자가
+  # 없으면 환경 변수 EVIDENTLY_SECRET을 읽고, 값이 프로세스 인자에 남지 않는다(클러스터 Deployment와 같다).
+  # 클라이언트는 같은 값을 보내야 쓸 수 있다. 호스트의 127.0.0.1:38000에서 대시보드를 본다.
+  docker run -d --name capstone-evidently --network "$net" --network-alias evidently.evidently.svc.cluster.local \
+    -p 127.0.0.1:38000:8000 -v capstone-evidently-data:/data --env-file "$work/evidently.env" \
+    -e DO_NOT_TRACK=1 -e EVIDENTLY_DISABLE_TELEMETRY=1 --entrypoint evidently \
+    evidently/evidently-service:0.7.23@sha256:5b38690426408061068eb5391e7c1fd3cff760a4f44e950c84977a69c271f385 \
+    ui --host=0.0.0.0 --port=8000 --workspace=/data/workspace >/dev/null
 
   for _ in $(seq 1 60); do
     admin 's3.list_buckets()' >/dev/null 2>&1 && break
@@ -92,7 +103,12 @@ print('buckets', [b['Name'] for b in s3.list_buckets()['Buckets']])"
     curl -fsS http://127.0.0.1:35000/health >/dev/null 2>&1 && break
     sleep 2
   done
-  echo "mlflow $(curl -fsS http://127.0.0.1:35000/health), valkey $(docker exec --env-file "$work/valkey.env" capstone-valkey valkey-cli ping)"
+  for _ in $(seq 1 60); do
+    curl -fsS http://127.0.0.1:38000/api/version >/dev/null 2>&1 && break
+    sleep 2
+  done
+  echo "mlflow $(curl -fsS http://127.0.0.1:35000/health), valkey $(docker exec --env-file "$work/valkey.env" capstone-valkey valkey-cli ping)," \
+    "evidently $(curl -fsS http://127.0.0.1:38000/api/version)"
   ;;
 run)
   yaml=${2:?컴파일된 pipeline.yaml}
@@ -109,9 +125,9 @@ valkey)
   docker exec --env-file "$work/valkey.env" capstone-valkey valkey-cli "$@"
   ;;
 down)
-  docker rm -f capstone-s3 capstone-valkey capstone-mlflow >/dev/null 2>&1 || true
+  docker rm -f capstone-s3 capstone-valkey capstone-mlflow capstone-evidently >/dev/null 2>&1 || true
   docker network rm "$net" >/dev/null 2>&1 || true
-  docker volume rm capstone-s3-data capstone-mlflow-data >/dev/null 2>&1 || true
+  docker volume rm capstone-s3-data capstone-mlflow-data capstone-evidently-data >/dev/null 2>&1 || true
   rm -rf "$work"
   ;;
 *)

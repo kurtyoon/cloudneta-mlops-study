@@ -5,6 +5,9 @@ labels:
 description: "Malicious URL Classifier"
 include:
   - "/service.py"
+  - "/drift_monitor.py"
+  # kfp/capstone_kfp/url_drift.py의 사본. Gitea 저장소 capstone-bento에는 kfp/가 없다.
+  - "/url_drift.py"
 python:
   requirements_txt: "requirements.lock"
   lock_packages: false

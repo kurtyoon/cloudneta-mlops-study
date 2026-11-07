@@ -13,4 +13,4 @@
 
 - [1주차](w01/): 서빙 이미지 고정
 - [2주차](w02/): 학습을 MLflow에 기록, Feast와 Kubeflow Pipelines
-- [3주차](w03/): 캡스톤 Bento를 Yatai와 KServe로 배포
+- [3주차](w03/): 캡스톤 Bento를 KServe로 배포, Evidently 드리프트

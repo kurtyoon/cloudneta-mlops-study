@@ -24,9 +24,14 @@ annotated-types==0.7.0 \
 anyio==4.7.0 \
     --hash=sha256:ea60c3723ab42ba6fff7e8ccb0488c898ec538ff4df1f1d5e642c3601d07e352
     # via
+    #   httpx
+    #   litestar
     #   mlflow-skinny
     #   starlette
     #   watchfiles
+appdirs==1.4.4 \
+    --hash=sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128
+    # via iterative-telemetry
 async-timeout==5.0.1 \
     --hash=sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c
     # via redis
@@ -52,7 +57,14 @@ cachetools==5.5.0 \
     #   mlflow-skinny
 certifi==2024.12.14 \
     --hash=sha256:1275f7a45be9464efc1173084eaa30f866fe2e47d389406136d332ed4967ec56
-    # via requests
+    # via
+    #   evidently
+    #   httpcore
+    #   httpx
+    #   requests
+cffi==1.17.1 \
+    --hash=sha256:a1ed2dd2972641495a3ec98445e09766f077aee98a1c896dcb4ad0d303628e41
+    # via cryptography
 charset-normalizer==3.4.0 \
     --hash=sha256:bf4475b82be41b07cc5e5ff94810e6a01f276e37c2d55571e3fe175e467a1a1c \
     --hash=sha256:fe9f97feb71aa9896b81973a7bbada8c49501dc73e58a10fcef6663af95e5079
@@ -62,7 +74,11 @@ click==8.1.7 \
     # via
     #   dask
     #   feast
+    #   litestar
     #   mlflow-skinny
+    #   nltk
+    #   rich-click
+    #   typer
     #   uvicorn
 cloudpickle==3.1.0 \
     --hash=sha256:fe11acda67f61aaaec473e3afe030feb131d78a43461b718185363384f1ba12e
@@ -72,6 +88,14 @@ cloudpickle==3.1.0 \
 colorama==0.4.6 \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
     # via feast
+cryptography==44.0.0 \
+    --hash=sha256:1923cb251c04be85eec9fda837661c67c1049063305d6be5721643c22dd4e2b7 \
+    --hash=sha256:4ac4c9f37eba52cb6fbeaf5b59c152ea976726b865bd4cf87883a7e7006cc543 \
+    --hash=sha256:761817a3377ef15ac23cd7834715081791d4ec77f9297ee694ca1ee9c2c7e5eb \
+    --hash=sha256:9e6fc8a08e116fb7c7dd1f040074c9d7b51d74a8ea40d4df2fc7aa08b76b9e6c \
+    --hash=sha256:b15492a11f9e1b62ba9d73c210e2416724633167de94607ec6069ef724fad092 \
+    --hash=sha256:c5eb858beed7835e5ad1faba59e865109f3e52b3783b9ac21e7e47dc5554e289
+    # via evidently
 dask==2024.12.1 \
     --hash=sha256:1f32acddf1a6994e3af6734756f0a92467c47050bc29f3555bb9b140420e8e19
     # via
@@ -89,9 +113,24 @@ deprecated==1.2.15 \
     # via
     #   opentelemetry-api
     #   opentelemetry-semantic-conventions
+deprecation==2.1.0 \
+    --hash=sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a
+    # via evidently
 dill==0.3.9 \
     --hash=sha256:468dff3b89520b474c0397703366b7b95eebe6303f108adf9b19da1f702be87a
     # via feast
+distro==1.9.0 \
+    --hash=sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2
+    # via iterative-telemetry
+dynaconf==3.2.6 \
+    --hash=sha256:3911c740d717df4576ed55f616c7cbad6e06bc8ef23ffca444b6e2a12fb1c34c
+    # via evidently
+evidently==0.7.23 \
+    --hash=sha256:dbba5537a644f3401b8a393008cd126e304bcf939a070a7c4399bcc5b97061f6
+    # via -r requirements.in
+faker==33.1.0 \
+    --hash=sha256:d30c5f0e2796b8970de68978365247657486eb0311c5abe88d0b895b68dff05d
+    # via polyfactory
 fastapi==0.115.6 \
     --hash=sha256:e9240b29e36fa8f4bb7290316988e90c381e5092e0cbe84e7818cc3713bcf305
     # via
@@ -104,6 +143,7 @@ filelock==3.16.1 \
     --hash=sha256:2082e5703d51fbf98ea75855d9d5527e33d8ff23099bec374a134febee6946b0
     # via
     #   huggingface-hub
+    #   iterative-telemetry
     #   torch
     #   transformers
 frozenlist==1.5.0 \
@@ -117,6 +157,7 @@ fsspec==2024.10.0 \
     # via
     #   -r requirements.in
     #   dask
+    #   evidently
     #   huggingface-hub
     #   s3fs
     #   torch
@@ -137,13 +178,21 @@ gunicorn==23.0.0 \
     # via feast
 h11==0.14.0 \
     --hash=sha256:e3fe4ac4b851c468cc8363d500db52c2ead036020723024a109d37346efaa761
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
 hiredis==2.4.0 \
     --hash=sha256:6033cc6caaf056969af9ce372282a6ef2838559f2eadffe7ddb73bf65dcb27d6
     # via feast
+httpcore==1.0.7 \
+    --hash=sha256:a3fff8f43dc260d5bd363d9f9cf1830fa3a458b332856f34282de498ed420edd
+    # via httpx
 httptools==0.6.4 \
     --hash=sha256:f8787367fbdfccae38e35abf7641dafc5310310a5987b689f4c32cc8cc3ee975
     # via uvicorn
+httpx==0.28.1 \
+    --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
+    # via litestar
 huggingface-hub==0.27.0 \
     --hash=sha256:8f2e834517f1f1ddf1ecc716f91b120d7333011b7485f665a9a412eacb1a2a81
     # via
@@ -153,6 +202,7 @@ idna==3.10 \
     --hash=sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3
     # via
     #   anyio
+    #   httpx
     #   requests
     #   yarl
 importlib-metadata==8.5.0 \
@@ -161,6 +211,9 @@ importlib-metadata==8.5.0 \
     #   dask
     #   mlflow-skinny
     #   opentelemetry-api
+iterative-telemetry==0.0.9 \
+    --hash=sha256:823688e48ef02f25b1aca2e11ddf700fdea2b97619c6aeee3b47c2a0ee58e527
+    # via evidently
 jinja2==3.1.4 \
     --hash=sha256:bc5dd2abb727a5319567b7a813e6a2e7318c39f4f487cfe6c89c6f9c7d25197d
     # via
@@ -173,19 +226,33 @@ jmespath==1.0.1 \
     #   botocore
 joblib==1.4.2 \
     --hash=sha256:06d478d5674cbc267e7496a410ee875abd68e4340feff4490bcb7afb88060ae6
-    # via scikit-learn
+    # via
+    #   nltk
+    #   scikit-learn
 jsonschema==4.23.0 \
     --hash=sha256:fbadb6f8b144a8f8cf9f0b89ba94501d143e50411a1278633f56a7acf7fd5566
     # via feast
 jsonschema-specifications==2024.10.1 \
     --hash=sha256:a09a0680616357d9a0ecf05c12ad234479f549239d0f5b55f3deea67475da9bf
     # via jsonschema
+litestar==2.19.0 \
+    --hash=sha256:849971d097a6118f81235531fc0f342d797bd29d9aef9c23230559f124d16247
+    # via evidently
+litestar-htmx==0.4.1 \
+    --hash=sha256:ba2a8ff1e210f21980735b9cde13d239a2b7c3627cb4aeb425d66f4a314d1a59
+    # via litestar
 locket==1.0.0 \
     --hash=sha256:b6c819a722f7b6bd955b80781788e4a66a55628b858d347536b7e81325a3a5e3
     # via partd
+markdown-it-py==3.0.0 \
+    --hash=sha256:355216845c60bd96232cd8d8c40e8f9765cc86f46880e43a8fd22dc1a1a8cab1
+    # via rich
 markupsafe==3.0.2 \
     --hash=sha256:2cb8438c3cbb25e220c2ab33bb226559e7afb3baec11c4f218ffa7308603c832
     # via jinja2
+mdurl==0.1.2 \
+    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8
+    # via markdown-it-py
 mlflow-skinny==3.17.2 \
     --hash=sha256:31be9190494212ccd94774170fd06f6fe04d209aae3923eefd16f9bf7830d63c
     # via -r requirements.in
@@ -195,33 +262,48 @@ mmh3==5.0.1 \
 mpmath==1.3.0 \
     --hash=sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c
     # via sympy
+msgspec==0.18.6 \
+    --hash=sha256:c3232fabacef86fe8323cecbe99abbc5c02f7698e3f5f2e248e3480b66a3596b
+    # via litestar
 multidict==6.1.0 \
     --hash=sha256:0e2b90b43e696f25c62656389d32236e049568b39320e2735d51f08fd362761b \
     --hash=sha256:48e171e52d1c4d33888e529b999e5900356b9ae588c2f09a52dcefb158b27506
     # via
     #   aiohttp
+    #   litestar
     #   yarl
+multipart==1.2.1 \
+    --hash=sha256:c03dc203bc2e67f6b46a599467ae0d87cf71d7530504b2c1ff4a9ea21d8b8c8c
+    # via litestar
 mypy==1.14.0 \
     --hash=sha256:2238d7f93fc4027ed1efc944507683df3ba406445a2b6c96e79666a045aadfab
     # via sqlalchemy
 mypy-extensions==1.0.0 \
     --hash=sha256:4392f6c0eb8a5668a69e23d168ffa70f0be9ccfd32b5cc2d26a34ae5b844552d
-    # via mypy
+    # via
+    #   mypy
+    #   typing-inspect
 mypy-protobuf==3.6.0 \
     --hash=sha256:56176e4d569070e7350ea620262478b49b7efceba4103d468448f1d21492fd6c
     # via feast
 networkx==3.4.2 \
     --hash=sha256:df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f
     # via torch
+nltk==3.9.1 \
+    --hash=sha256:4fa26829c5b00715afe3061398a8989dc643b92ce7dd93fb4585a70930d168a1
+    # via evidently
 numpy==1.26.4 \
     --hash=sha256:7ab55401287bfec946ced39700c053796e7cc0e3acbef09993a9ad2adba6ca6e
     # via
     #   -r requirements.in
     #   dask
+    #   evidently
     #   feast
     #   pandas
+    #   patsy
     #   scikit-learn
     #   scipy
+    #   statsmodels
     #   transformers
 opentelemetry-api==1.29.0 \
     --hash=sha256:5fcd94c4141cc49c736271f3e1efb777bebe9cc535759c54c936cca4f1b312b8
@@ -231,7 +313,9 @@ opentelemetry-api==1.29.0 \
     #   opentelemetry-semantic-conventions
 opentelemetry-proto==1.27.0 \
     --hash=sha256:b133873de5581a50063e1e4b29cdcf0c5e253a8c2d8dc1229add20a4c3830ace
-    # via mlflow-skinny
+    # via
+    #   evidently
+    #   mlflow-skinny
 opentelemetry-sdk==1.29.0 \
     --hash=sha256:173be3b5d3f8f7d671f20ea37056710217959e774e2749d984355d1f9391a30a
     # via mlflow-skinny
@@ -242,9 +326,12 @@ packaging==24.2 \
     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759
     # via
     #   dask
+    #   deprecation
     #   gunicorn
     #   huggingface-hub
     #   mlflow-skinny
+    #   plotly
+    #   statsmodels
     #   transformers
 pandas==2.2.3 \
     --hash=sha256:cd8d0c3be0515c12fed0bdbae072551c8b54b7192c7b1fda0ba56059a0179698
@@ -252,10 +339,21 @@ pandas==2.2.3 \
     #   -r requirements.in
     #   dask
     #   dask-expr
+    #   evidently
     #   feast
+    #   statsmodels
 partd==1.4.2 \
     --hash=sha256:978e4ac767ec4ba5b86c6eaa52e5a2a3bc748a2ca839e8cc798f1cc6ce6efb0f
     # via dask
+patsy==1.0.1 \
+    --hash=sha256:751fb38f9e97e62312e921a1954b81e1bb2bcda4f5eeabaf94db251ee791509c
+    # via statsmodels
+plotly==5.24.1 \
+    --hash=sha256:f67073a1e637eb0dc3e46324d9d51e2fe76e9727c892dde64ddf1e1b51f29089
+    # via evidently
+polyfactory==2.18.1 \
+    --hash=sha256:1a2b0715e08bfe9f14abc838fc013ab8772cb90e66f2e601e15e1127f0bc1b18
+    # via litestar
 propcache==0.2.1 \
     --hash=sha256:52277518d6aae65536e9cea52d4e7fd2f7a66f4aa2d30ed3f2fcea620ace3c54 \
     --hash=sha256:b480c6a4e1138e1aa137c0079b9b6305ec6dcc1098a8ca5196283e8a49df95a9
@@ -277,6 +375,7 @@ pyarrow==18.1.0 \
     #   -r requirements.in
     #   dask-expr
     #   feast
+    #   pandas
 pyasn1==0.6.1 \
     --hash=sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629
     # via
@@ -285,9 +384,13 @@ pyasn1==0.6.1 \
 pyasn1-modules==0.4.1 \
     --hash=sha256:49bfa96b45a292b711e986f222502c1c9a5e1f4e568fc30e2574a6c7d07838fd
     # via google-auth
+pycparser==2.22 \
+    --hash=sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc
+    # via cffi
 pydantic==2.10.4 \
     --hash=sha256:597e135ea68be3a37552fb524bc7d0d66dcf93d395acd93a00682f1efcb8ee3d
     # via
+    #   evidently
     #   fastapi
     #   feast
     #   mlflow-skinny
@@ -296,11 +399,14 @@ pydantic-core==2.27.2 \
     # via pydantic
 pygments==2.18.0 \
     --hash=sha256:b8e6aca0523f3ab76fee51799c488e38782ac06eafcf95e7ba832985c8e7b13a
-    # via feast
+    # via
+    #   feast
+    #   rich
 python-dateutil==2.9.0.post0 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
     # via
     #   botocore
+    #   faker
     #   pandas
 python-dotenv==1.0.1 \
     --hash=sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a
@@ -314,8 +420,10 @@ pyyaml==6.0.2 \
     --hash=sha256:5d225db5a45f21e78dd9358e58a98702a0302f2659a3c6cd320564b75b86f47c
     # via
     #   dask
+    #   evidently
     #   feast
     #   huggingface-hub
+    #   litestar
     #   mlflow-skinny
     #   transformers
     #   uvicorn
@@ -331,15 +439,29 @@ referencing==0.35.1 \
     #   jsonschema-specifications
 regex==2024.11.6 \
     --hash=sha256:1062b39a0a2b75a9c694f7a08e7183a80c63c0d62b301418ffd9c35f55aaa114
-    # via transformers
+    # via
+    #   nltk
+    #   transformers
 requests==2.32.3 \
     --hash=sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6
     # via
     #   databricks-sdk
+    #   evidently
     #   feast
     #   huggingface-hub
+    #   iterative-telemetry
     #   mlflow-skinny
     #   transformers
+rich==13.9.4 \
+    --hash=sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90
+    # via
+    #   evidently
+    #   litestar
+    #   rich-click
+    #   typer
+rich-click==1.8.5 \
+    --hash=sha256:0fab7bb5b66c15da17c210b4104277cd45f3653a7322e0098820a169880baee0
+    # via litestar
 rpds-py==0.22.3 \
     --hash=sha256:fb4f868f712b2dd4bcc538b0a0c1f63a2b1d584c925e69a224d759e7070a12d5
     # via
@@ -359,10 +481,18 @@ safetensors==0.4.5 \
     # via transformers
 scikit-learn==1.4.2 \
     --hash=sha256:b0203c368058ab92efc6168a1507d388d41469c873e96ec220ca8e74079bf62e
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   evidently
 scipy==1.14.1 \
     --hash=sha256:278266012eb69f4a720827bdd2dc54b2271c97d84255b2faaa8f161a158c3b37
-    # via scikit-learn
+    # via
+    #   evidently
+    #   scikit-learn
+    #   statsmodels
+shellingham==1.5.4 \
+    --hash=sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686
+    # via typer
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
     # via python-dateutil
@@ -371,7 +501,9 @@ smmap==5.0.1 \
     # via gitdb
 sniffio==1.3.1 \
     --hash=sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2
-    # via anyio
+    # via
+    #   anyio
+    #   litestar
 sqlalchemy==2.0.36 \
     --hash=sha256:d0ddd9db6e59c44875211bc4c7953a9f6638b937b0a88ae6d09eb46cced54eff \
     --hash=sha256:fddbe92b4760c6f5d48162aef14824add991aeda8ddadb3c31d56eb15ca69f8e
@@ -384,6 +516,9 @@ starlette==0.41.3 \
     # via
     #   fastapi
     #   mlflow-skinny
+statsmodels==0.14.4 \
+    --hash=sha256:aa74aaa26eaa5012b0a01deeaa8a777595d0835d3d6c7175f2ac65435a7324d2
+    # via evidently
 sympy==1.13.3 \
     --hash=sha256:54612cf55a62755ee71824ce692986f23c88ffa77207b30c1368eda4a7060f73
     # via torch
@@ -392,7 +527,9 @@ tabulate==0.9.0 \
     # via feast
 tenacity==8.5.0 \
     --hash=sha256:b594c2a5945830c267ce6b79a166228323ed52718f30302c1359836112346687
-    # via feast
+    # via
+    #   feast
+    #   plotly
 threadpoolctl==3.5.0 \
     --hash=sha256:56c1e26c150397e58c4926da8eeee87533b1e32bef131bd4bf6a2f45f3185467
     # via scikit-learn
@@ -415,6 +552,7 @@ tqdm==4.67.1 \
     # via
     #   feast
     #   huggingface-hub
+    #   nltk
     #   transformers
 transformers==4.40.1 \
     --hash=sha256:9d5ee0c8142a60501faf9e49a0b42f8e9cb8611823bce4f195a9325a6816337e
@@ -422,6 +560,9 @@ transformers==4.40.1 \
 typeguard==4.4.1 \
     --hash=sha256:9324ec07a27ec67fc54a9c063020ca4c0ae6abad5e9f0f9804ca59aee68c6e21
     # via feast
+typer==0.15.1 \
+    --hash=sha256:7994fb7b8155b64d3402518560648446072864beefd44aa2dc36972a5972e847
+    # via evidently
 types-protobuf==5.29.1.20241207 \
     --hash=sha256:92893c42083e9b718c678badc0af7a9a1307b92afe1599e5cba5f3d35b668b2f
     # via mypy-protobuf
@@ -429,32 +570,52 @@ typing-extensions==4.12.2 \
     --hash=sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d
     # via
     #   anyio
+    #   faker
     #   fastapi
     #   huggingface-hub
+    #   litestar
     #   mlflow-skinny
     #   mypy
     #   opentelemetry-sdk
+    #   polyfactory
     #   pydantic
     #   pydantic-core
+    #   rich-click
     #   sqlalchemy
     #   torch
     #   typeguard
+    #   typer
+    #   typing-inspect
+typing-inspect==0.9.0 \
+    --hash=sha256:9ee6fc59062311ef8547596ab6b955e1b8aa46242d854bfc78f4f6b0eff35f9f
+    # via evidently
 tzdata==2024.2 \
     --hash=sha256:a48093786cdcde33cad18c2555e8532f34422074448fbc874186f0abd79565cd
     # via pandas
+ujson==5.10.0 \
+    --hash=sha256:5b91b5d0d9d283e085e821651184a647699430705b15bf274c7896f23fe9c9d8
+    # via evidently
 urllib3==2.2.3 \
     --hash=sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac
     # via
     #   botocore
+    #   evidently
     #   requests
+uuid6==2024.7.10 \
+    --hash=sha256:93432c00ba403751f722829ad21759ff9db051dea140bf81493271e8e4dd18b7
+    # via evidently
 uvicorn==0.34.0 \
     --hash=sha256:023dc038422502fa28a09c7a30bf2b6991512da7dcdb8fd35fe57cfc154126f4
     # via
+    #   evidently
     #   feast
     #   mlflow-skinny
 uvloop==0.21.0 \
     --hash=sha256:b9fb766bb57b7388745d8bcc53a359b116b8a04c83a2288069809d2b3466c37e
     # via uvicorn
+watchdog==6.0.0 \
+    --hash=sha256:7607498efa04a3542ae3e05e64da8202e58159aa1fa4acddf7678d34a35d4f13
+    # via evidently
 watchfiles==1.0.3 \
     --hash=sha256:2f492d2907263d6d0d52f897a68647195bc093dafed14508a8d6817973586b6b
     # via uvicorn

@@ -1,6 +1,7 @@
 # ../pipeline/bento/의 워크플로가 올린 이미지를 KServe(Standard 모드)로 띄운다.
 # KServe가 Deployment와 Service capstone-url-classifier-predictor(80에서 3000으로)를 만든다.
 # status.url은 쓰지 않는 ingress 도메인으로 만들어져 닿지 않는다. 주소는 status.address.url이다.
+# 드리프트 감시를 켜면 시작 직후 549Mi, 첫 window 보고서 뒤 720Mi에서 머문다. 요청은 그 위로 1Gi.
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
@@ -24,7 +25,7 @@ spec:
     containers:
       # 이름과 CPU, 메모리 네 값을 다 적어야 KServe webhook이 컨테이너를 고쳐 쓰지 않는다.
       - name: kserve-container
-        image: git.example.dev/mlops-lab/capstone-bento:d608e0f356c917d8739c867f029d185e2154b070-v3@sha256:13838a8feba90fd8ce9e764f7f30045d4a8dba1f6a70815a56f18d7bfe3a83c9
+        image: git.example.dev/mlops-lab/capstone-bento:3b1de1b7981978014ba5f7ada582daa34f756783-v3@sha256:4b42f3fed3cb68ddd13d81994bfdb34ec51999121fcab2bca1947d638be79e8b
         ports:
           - containerPort: 3000
             name: http1
@@ -35,6 +36,15 @@ spec:
           # torch는 지정하지 않으면 노드 코어 수만큼 스레드를 띄운다
           - name: OMP_NUM_THREADS
             value: "1"
+          # 드리프트 감시: 요청 URL 100건마다 보고서를 Evidently 프로젝트에 넣는다(../pipeline/bento/drift_monitor.py).
+          # 둘 중 하나라도 없으면 감시는 꺼지고 예측만 한다.
+          - name: EVIDENTLY_URL
+            value: http://evidently.evidently.svc.cluster.local:8000
+          - name: EVIDENTLY_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: evidently-secret
+                key: EVIDENTLY_SECRET
         startupProbe:
           httpGet:
             path: /livez
@@ -53,7 +63,7 @@ spec:
         resources:
           requests:
             cpu: 200m
-            memory: 768Mi
+            memory: 1Gi
           limits:
             cpu: "1"
             memory: 1536Mi

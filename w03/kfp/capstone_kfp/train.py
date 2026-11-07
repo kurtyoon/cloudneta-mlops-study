@@ -2,6 +2,7 @@
 
 analysis/classifier/classifier.py에서 데이터를 읽는 부분만 바꿨다. 입력은 Feast
 get_historical_features로, 분할은 피처 단계가 적어 둔 split 칸으로 받는다.
+학습 URL의 url_stats는 드리프트 reference로 run에 남긴다(drift.log_reference).
 """
 import os
 import time
@@ -10,11 +11,12 @@ import warnings
 import mlflow
 import mlflow.pytorch
 import torch
+from mlflow import MlflowClient
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader, Dataset
 from transformers import AdamW, BertConfig, BertForSequenceClassification
 
-from capstone_kfp import common, config
+from capstone_kfp import common, config, drift, url_drift
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -81,7 +83,9 @@ class URLClassifier:
 
     def load_and_prepare_data(self):
         # label, split 칸은 조인 결과에 그대로 따라온다.
-        entity_df = common.read_parquet(config.LABELS_URI)[['url_id', 'event_timestamp', 'label', 'split']]
+        labels = common.read_parquet(config.LABELS_URI)
+        entity_df = labels[['url_id', 'event_timestamp', 'label', 'split']]
+        self.train_urls = labels.loc[labels['split'] == 'train', 'url']
         store = common.feature_store()
         data = store.get_historical_features(entity_df=entity_df, features=FEATURES).to_df()
         if data['token_ids'].isna().any():
@@ -195,6 +199,9 @@ def run(args, features_sha256, labels_sha256, kfp_run_id):
             'data_sha256': features_sha256,  # 오프라인 스토어 parquet
             'labels_sha256': labels_sha256,
         })
+        # 드리프트 단계와 Bento 서비스가 비교할 reference. 이 run이 champion이 되면 그쪽이 받아 간다.
+        drift.log_reference(MlflowClient(args.tracking_uri), active.info.run_id,
+                            url_drift.url_stats(classifier.train_urls), tracking_uri=args.tracking_uri)
         classifier.train_model()
         classifier.log_results()
         version = classifier.save_model()

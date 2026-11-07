@@ -51,11 +51,16 @@ def read_parquet(uri):
     return pd.read_parquet(io.BytesIO(read_bytes(uri)))
 
 
-def write_parquet(df, uri):
-    """parquet으로 올리고 그 바이트의 sha256을 돌려준다."""
+def parquet_bytes(df):
     buf = io.BytesIO()
     df.to_parquet(buf, index=False)
-    data = buf.getvalue()
+    return buf.getvalue()
+
+
+def write_parquet(df, uri):
+    """parquet으로 올리고 그 바이트의 sha256을 돌려준다(MLflow에 데이터 버전으로 남긴다).
+    tools/backfill_reference.py가 같은 바이트를 다시 만들어 이 값과 맞춰 본다."""
+    data = parquet_bytes(df)
     write_bytes(uri, data)
     return sha256(data)
 

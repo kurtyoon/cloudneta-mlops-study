@@ -4,7 +4,8 @@
 2. 학습: 라벨 parquet을 엔티티로 get_historical_features → 작은 BERT → MLflow run, 모델 등록
 3. 승격: macro F1이 기준 이상이면 champion 별칭을 새 버전으로
 4. materialize: 추론 요청으로 쓸 행만 Valkey에 올린다
-5. 온라인 추론: Valkey에서 get_online_features → champion 모델 → 예측은 S3에, 지표는 KFP 출력으로
+5. 드리프트 탐지: champion run의 reference와 요청 URL의 url_stats를 Evidently로 비교, 드리프트 여부를 출력으로
+6. 온라인 추론: 드리프트가 없을 때만(dsl.If). Valkey에서 get_online_features → champion 모델 → 예측은 S3에, 지표는 KFP 출력으로
 
 2와 4는 1 뒤에 나란히 돌고, 5는 3과 4가 모두 끝난 뒤에 돈다. 단계 코드는 이미지의 capstone_kfp에 있다.
 kfp도 이미지에 들어 있어 Pod가 시작할 때 pip install을 하지 않는다.
@@ -25,6 +26,8 @@ S3_SECRET = 'kfp-pipeline-s3'
 S3_ENV = {'AWS_ACCESS_KEY_ID': 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY': 'AWS_SECRET_ACCESS_KEY'}
 VALKEY_SECRET = 'feast-valkey'
 VALKEY_ENV = {'VALKEY_PASSWORD': 'VALKEY_PASSWORD'}
+EVIDENTLY_SECRET = 'evidently-secret'
+EVIDENTLY_ENV = {'EVIDENTLY_SECRET': 'EVIDENTLY_SECRET'}
 
 
 def build_features(raw_csv: str, sample_size: int, seed: int, max_length: int, n_online: int) -> NamedTuple(
@@ -69,6 +72,20 @@ def materialize_online(labels_sha256: str) -> NamedTuple('Outputs', [('keys', in
     return r['keys'], r['bytes'], r['matched']
 
 
+def detect_drift(champion_version: str, online_keys: int, drift_share: float, kfp_run_id: str, tracking_uri: str,
+                 registered_model: str, evidently_url: str, evidently_project: str,
+                 report: dsl.Output[dsl.Markdown]) -> NamedTuple(
+        'Outputs', [('drift_detected', bool), ('drifted_share', float)]):
+    # champion_version과 online_keys는 승격과 materialize 뒤에 돌게 하는 입력이다. champion_version은
+    # 별칭으로 다시 찾은 버전과 같은지도 확인한다.
+    from capstone_kfp import drift
+    r = drift.run(tracking_uri, registered_model, evidently_url, evidently_project, drift_share, kfp_run_id,
+                  champion_version)
+    with open(report.path, 'w') as f:
+        f.write(r['markdown'])
+    return r['drift_detected'], r['drifted_share']
+
+
 def infer_online(champion_version: str, online_keys: int, kfp_run_id: str, tracking_uri: str, registered_model: str,
           metrics: dsl.Output[dsl.Metrics], report: dsl.Output[dsl.Markdown]) -> NamedTuple(
         'Outputs', [('output', str), ('accuracy', float)]):
@@ -89,8 +106,8 @@ def make_pipeline(image):
     def component(func):
         return dsl.component(func, base_image=image, install_kfp_package=False)
 
-    build_op, train_op, promote_op, materialize_op, infer_op = map(
-        component, (build_features, train_model, promote_model, materialize_online, infer_online))
+    build_op, train_op, promote_op, materialize_op, drift_op, infer_op = map(
+        component, (build_features, train_model, promote_model, materialize_online, detect_drift, infer_online))
 
     @dsl.pipeline(name='capstone-url-classifier',
                   description='캡스톤 악성 URL 분류기: Feast 오프라인 스토어로 학습, 온라인 스토어로 추론')
@@ -108,9 +125,14 @@ def make_pipeline(image):
             # classifier.py 기본값 1e-5는 랜덤 초기화한 작은 모델에 너무 느리다.
             lr: float = 1e-4,
             macro_f1_threshold: float = 0.9,
+            # 드리프트가 난 칸의 비율이 이 값 이상이면 온라인 추론을 건너뛴다. 책 6.2.1의 데이터셋 임곗값.
+            # 칸마다의 판정은 따로 고정했다: KS 검정 p-value가 0.05보다 작으면 드리프트(url_drift.py).
+            drift_share: float = 0.5,
             tracking_uri: str = config.MLFLOW_TRACKING_URI,
             experiment: str = config.EXPERIMENT,
             registered_model: str = config.REGISTERED_MODEL,
+            evidently_url: str = config.EVIDENTLY_URL,
+            evidently_project: str = config.EVIDENTLY_PROJECT,
     ):
         feats = build_op(raw_csv=raw_csv, sample_size=sample_size, seed=seed, max_length=max_length,
                          n_online=n_online)
@@ -124,15 +146,22 @@ def make_pipeline(image):
                               macro_f1=trained.outputs['macro_f1'], threshold=macro_f1_threshold,
                               tracking_uri=tracking_uri, registered_model=registered_model)
         online = materialize_op(labels_sha256=feats.outputs['labels_sha256'])
-        inferred = infer_op(champion_version=promoted.outputs['champion_version'],
-                            online_keys=online.outputs['keys'], kfp_run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
-                            tracking_uri=tracking_uri, registered_model=registered_model)
+        drifted = drift_op(champion_version=promoted.outputs['champion_version'], online_keys=online.outputs['keys'],
+                           drift_share=drift_share, kfp_run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+                           tracking_uri=tracking_uri, registered_model=registered_model,
+                           evidently_url=evidently_url, evidently_project=evidently_project)
+        # 저자 파이프라인은 .after()로 순서만 건다. 조건식은 IR로 컴파일되므로 `== False`로 쓴다.
+        with dsl.If(drifted.outputs['drift_detected'] == False):  # noqa: E712
+            inferred = infer_op(champion_version=promoted.outputs['champion_version'],
+                                online_keys=online.outputs['keys'], kfp_run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+                                tracking_uri=tracking_uri, registered_model=registered_model)
 
-        # Secret은 그 값을 쓰는 단계에만 준다. 승격은 MLflow만 부르므로 둘 다 받지 않는다.
-        for task in (feats, trained, online, inferred):
+        # Secret은 그 값을 쓰는 단계에만 준다. 승격은 MLflow만 부르므로 아무것도 받지 않는다.
+        for task in (feats, trained, online, drifted, inferred):
             kubernetes.use_secret_as_env(task, secret_name=S3_SECRET, secret_key_to_env=S3_ENV)
         for task in (feats, online, inferred):
             kubernetes.use_secret_as_env(task, secret_name=VALKEY_SECRET, secret_key_to_env=VALKEY_ENV)
+        kubernetes.use_secret_as_env(drifted, secret_name=EVIDENTLY_SECRET, secret_key_to_env=EVIDENTLY_ENV)
 
         # 상한 없이 2Gi보다 큰 요청을 주면 LimitRange의 기본 상한에 걸려 거부되므로 상한을 같이 준다.
         # torch는 노드의 코어 수만큼 스레드를 열므로 OMP_NUM_THREADS를 CPU 상한에 맞춘다.
@@ -141,12 +170,15 @@ def make_pipeline(image):
         trained.set_env_variable('OMP_NUM_THREADS', '2')
         promoted.set_cpu_request('100m').set_cpu_limit('500m').set_memory_request('256Mi').set_memory_limit('512Mi')
         online.set_cpu_request('100m').set_cpu_limit('1').set_memory_request('256Mi').set_memory_limit('1Gi')
+        drifted.set_cpu_request('100m').set_cpu_limit('1').set_memory_request('512Mi').set_memory_limit('1Gi')
+        # Evidently 클라이언트는 사용 통계를 보내지 않지만(서버만 보낸다), 서버 쪽 설정과 같이 끈다.
+        drifted.set_env_variable('DO_NOT_TRACK', '1')
         inferred.set_cpu_request('250m').set_cpu_limit('1').set_memory_request('768Mi').set_memory_limit('1536Mi')
         inferred.set_env_variable('OMP_NUM_THREADS', '1')
 
-        # 모든 단계가 S3, 레지스트리, MLflow, Valkey의 상태를 바꾸므로 캐시하지 않는다.
+        # 모든 단계가 S3, 레지스트리, MLflow, Valkey, Evidently의 상태를 바꾸므로 캐시하지 않는다.
         for task, name in ((feats, '1. 피처 생성'), (trained, '2. 학습'), (promoted, '3. 승격'),
-                           (online, '4. materialize'), (inferred, '5. 온라인 추론')):
+                           (online, '4. materialize'), (drifted, '5. 드리프트 탐지'), (inferred, '6. 온라인 추론')):
             task.set_caching_options(False)
             task.set_display_name(name)
 
