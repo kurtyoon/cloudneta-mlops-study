@@ -1,10 +1,5 @@
-"""tests/data/url_stats_sample.csv를 만든다: 원본 CSV에서 피처 단계와 같은 방법으로 뽑은 표본의 url_stats.
-
-피처 단계(capstone_kfp/features.py)의 함수를 그대로 쓴다: 중복 제거 → 클래스 비율을 지킨 표본(SAMPLE_SIZE,
-SEED) → 8:2 층화 분할(SEED). URL은 넣지 않고 분할(split), 클래스(type), url_stats 8칸만 넣는다.
-tests/test_url_drift.py가 train 행을 reference로, test 행을 요청으로 써서 실제 분포에서의 판정을 확인한다.
-
-원본 CSV는 저장소에 없다(analysis/preprocessing/data/, gitignore). kfp/에서 이미지로 돌린다:
+"""tests/data/url_stats_sample.csv를 만든다: features.py와 같은 방법으로 뽑은 표본의 split, type, url_stats.
+tests/test_url_drift.py가 train 행을 reference로, test 행을 요청으로 쓴다. 원본 CSV는 저장소에 없다:
 
     docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -v <원본 CSV 디렉터리>:/data:ro capstone-kfp:dev \
         python tests/data/make_url_stats_sample.py /data/malicious_phish.csv

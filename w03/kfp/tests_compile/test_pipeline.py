@@ -1,7 +1,6 @@
 """파이프라인이 컴파일되고, 온라인 추론이 드리프트 단계의 출력에 걸린 dsl.If 안에 있는지.
 
-컴파일하는 venv(.venv-kfp, kfp 2.9.0 + kfp-kubernetes 1.3.0)에서 돈다. 컴포넌트 이미지에는 kfp가
-의존성 없이 들어 있어 컴파일러를 import하지 못하므로 tests/와 따로 둔다:
+컴포넌트 이미지의 kfp는 컴파일러를 import하지 못해 tests/와 따로, 컴파일하는 venv에서 돈다:
 
     uv pip install --python .venv-kfp/bin/python pytest==8.3.4
     .venv-kfp/bin/python -m pytest -q tests_compile

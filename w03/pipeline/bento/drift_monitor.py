@@ -1,21 +1,8 @@
 """Bento 서비스의 마이크로배치 드리프트 감시(책 6.2.3의 MonitoringService).
 
-요청 URL을 모아 window개가 차면 reference(champion을 학습한 URL의 url_stats, build.py가 모델 폴더에
-넣는다)와 비교한 보고서를 KFP 드리프트 단계와 같은 Evidently 프로젝트에 넣는다. 요청 하나로는 분포를
-비교할 수 없어서 모은다.
-
-책은 window가 찬 뒤로 요청마다 최근 N개로 보고서를 만든다(겹치는 window). 여기서는 window가 찰 때마다
-한 번 만들고 비운다. 그래야 대시보드의 '확인한 요청 수'(합)가 요청 하나를 한 번만 세고, 요청마다
-보고서를 만들지 않는다.
-
-보고서는 백그라운드 스레드 하나에서 차례로 만들고 보낸다. 요청은 URL을 붙이고 바로 돌아간다. 요청이
-몰려 보고서보다 window가 빨리 차면 window가 줄을 선다. 줄에 이미 max_pending개가 있으면 그 window는
-버리고 로그를 남긴다. Evidently가 응답하지 않을 때 메모리가 계속 늘지 않게 한다. Evidently 요청마다
-timeout이 있고(url_drift.HTTP_TIMEOUT), 스레드는 데몬이라 서버가 내려갈 때 그 스레드를 기다리지 않는다.
-보내던 보고서는 버려진다.
-
-window는 프로세스 메모리에 있다. 워커가 여럿이면 워커마다 window를 따로 쌓는다(스터디장 실습 노트).
-그래서 서비스는 워커 하나로 돈다(service.py의 workers=1).
+요청 URL이 window개 차면 build.py가 넣은 reference와 비교한 보고서를 KFP 단계와 같은 프로젝트에 넣는다.
+책과 달리 window가 찰 때마다 한 번 만들고 비운다. 보고서는 백그라운드 스레드가 만들고, 줄 선 window가
+max_pending개를 넘으면 버린다. window가 프로세스 메모리에 있어 서비스는 워커 하나로 돈다.
 """
 import logging
 import os
@@ -38,8 +25,7 @@ MAX_PENDING = 10  # 줄을 서는 window 수의 상한. 지금 만들고 있는 
 class DriftMonitor:
     def __init__(self, reference, window, workspace_factory, project=PROJECT, drift_share=0.5, metadata=None,
                  max_pending=MAX_PENDING):
-        """workspace_factory는 첫 보고서를 보낼 때 부른다. 서비스 시작이 Evidently에 묶이지 않게 한다
-        (RemoteWorkspace는 만들 때 서버에 버전을 묻는다). 실패하면 다음 window에서 다시 부른다."""
+        """workspace_factory는 첫 보고서를 보낼 때 부른다. 서비스 시작이 Evidently에 묶이지 않게 한다."""
         if window < 2:
             raise ValueError(f'window는 2 이상이어야 한다. 요청 1건으로는 분포를 비교하지 못한다: {window}')
         self.reference = reference
@@ -58,7 +44,7 @@ class DriftMonitor:
         self._thread.start()
 
     def add(self, url):
-        """요청 URL 하나를 window에 붙인다. window가 차서 줄에 넣었으면 그 보고서의 Future, 아니면 None."""
+        """window가 차서 줄에 넣었으면 그 보고서의 Future, 아니면 None."""
         with self._lock:
             self._urls.append(url)
             if len(self._urls) < self.window:
@@ -91,17 +77,14 @@ class DriftMonitor:
                      len(summary['columns']), summary['drifted_share'])
             return summary
         except Exception:
-            # 감시가 실패해도 예측은 계속한다. 이 window는 버리고, 다음 window에서 workspace와 프로젝트를
-            # 다시 찾는다(서버가 다시 떠서 프로젝트가 바뀌었을 수 있다).
+            # 이 window는 버리고 다음 window에서 workspace와 프로젝트를 다시 찾는다.
             self._workspace = self._project_id = None
             log.exception('drift: 요청 %d건의 보고서를 Evidently에 넣지 못했다', len(urls))
             return None
 
 
 def from_env(reference_path, metadata):
-    """EVIDENTLY_URL과 EVIDENTLY_SECRET이 있으면 감시를 켠다. 없으면 한 번 로그를 남기고 None.
-    DRIFT_WINDOW로 window 크기를 바꾼다. 감시를 켜다 실패해도(reference 파일, DRIFT_WINDOW 값) 로그를 남기고
-    None을 돌려준다. 서비스는 감시 없이 예측만 한다."""
+    """EVIDENTLY_URL과 EVIDENTLY_SECRET이 있으면 감시를 켠다. 없거나 켜다 실패하면 None, 예측만 한다."""
     url, secret = os.environ.get('EVIDENTLY_URL'), os.environ.get('EVIDENTLY_SECRET')
     if not url or not secret:
         log.warning('drift: EVIDENTLY_URL 또는 EVIDENTLY_SECRET이 없어 드리프트 감시를 끈다. 예측은 그대로 한다')
