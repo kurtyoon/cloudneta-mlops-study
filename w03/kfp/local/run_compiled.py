@@ -2,6 +2,7 @@
 
 컴파일된 이미지, command, args를 그대로 쓰고 {{$}} 자리에 executor input JSON을 넣는다.
 Secret은 secretAsEnv에 적힌 단계에만, 메모리 상한은 컴파일된 값으로 준다.
+dsl.If의 조건 task는 IR의 조건식을 계산해 참일 때만 그 안의 단계를 돌린다.
 KFP 드라이버, 런처, Argo, API 서버의 동작은 클러스터에서 확인한다.
 
 사용법: python run_compiled.py <pipeline.yaml> --network <docker 네트워크> --secrets <json> --work <디렉터리>
@@ -9,6 +10,7 @@ KFP 드라이버, 런처, Argo, API 서버의 동작은 클러스터에서 확�
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 import uuid
@@ -29,6 +31,16 @@ def topological(tasks):
             order.append(n)
             done.add(n)
     return order
+
+
+def condition_holds(expr, values):
+    """KFP가 IR에 적는 조건식(CEL) 중 inputs.parameter_values['이름'] == 값(또는 !=) 꼴만 계산한다."""
+    m = re.fullmatch(r"inputs\.parameter_values\['([^']+)'\] (==|!=) (.+)", expr)
+    if not m:
+        sys.exit(f'다룰 수 없는 조건식: {expr}')
+    name, op, literal = m.groups()
+    expected = json.loads(literal.replace("'", '"'))
+    return (values[name] == expected) == (op == '==')
 
 
 def cast(value, type_name):
@@ -59,19 +71,20 @@ def main():
     work = Path(a.work).resolve()
     print(f'run id {run_id}, parameters {params}', flush=True)
 
-    tasks = spec['root']['dag']['tasks']
     outputs = {}  # (task, name) -> 값
-    for name in topological(tasks):
-        task = tasks[name]
-        comp = spec['components'][task['componentRef']['name']]
-        exe = comp['executorLabel']
-        container = spec['deploymentSpec']['executors'][exe]['container']
 
+    def run_dag(tasks, scope):
+        """scope: 이 DAG의 입력(root는 파이프라인 파라미터, dsl.If 안은 조건 task가 넘긴 값)."""
+        for name in topological(tasks):
+            run_task(name, tasks[name], scope)
+
+    def run_task(name, task, scope):
+        comp = spec['components'][task['componentRef']['name']]
         values = {}
         types = {p: d['parameterType'] for p, d in comp.get('inputDefinitions', {}).get('parameters', {}).items()}
         for p, v in task['inputs'].get('parameters', {}).items():
             if 'componentInputParameter' in v:
-                values[p] = params[v['componentInputParameter']]
+                values[p] = scope[v['componentInputParameter']]
             elif 'taskOutputParameter' in v:
                 ref = v['taskOutputParameter']
                 values[p] = outputs[(ref['producerTask'], ref['outputParameterKey'])]
@@ -81,6 +94,16 @@ def main():
             # IR은 정수 기본값을 42.0처럼 적는다. KFP 드라이버처럼 정수로 넘긴다.
             if types.get(p) == 'NUMBER_INTEGER':
                 values[p] = int(values[p])
+        # dsl.If: 조건 task는 컴포넌트 대신 안쪽 DAG를 갖는다. 조건이 참일 때만 그 DAG를 돌린다.
+        if 'dag' in comp:
+            condition = task.get('triggerPolicy', {}).get('condition')
+            if condition and not condition_holds(condition, values):
+                print(f'== {name}: 조건 거짓({condition}), 안쪽 task를 건너뛴다', flush=True)
+                return
+            run_dag(comp['dag']['tasks'], values)
+            return
+        exe = comp['executorLabel']
+        container = spec['deploymentSpec']['executors'][exe]['container']
         task_dir = work / name
         task_dir.mkdir(parents=True, exist_ok=True)
         out_defs = comp.get('outputDefinitions', {})
@@ -120,6 +143,8 @@ def main():
                 if x.get('metadata'):
                     print(f'   {art}: {json.dumps(x["metadata"], ensure_ascii=False)}')
         print(f'   outputs: {result.get("parameterValues", {})}', flush=True)
+
+    run_dag(spec['root']['dag']['tasks'], params)
     print(json.dumps({'run_id': run_id, 'outputs': {f'{t}.{p}': v for (t, p), v in outputs.items()}},
                      ensure_ascii=False))
 

@@ -19,3 +19,8 @@ scikit-learn==1.4.2
 
 # MLflow 서버와 같은 버전의 클라이언트만 설치한다.
 mlflow-skinny==3.17.2
+
+# 드리프트 단계(drift.py): 클러스터의 Evidently UI와 같은 0.7.23. 0.7.23은 pandas 3에서 import가 실패한다.
+# pandas는 위의 2.2.3으로 고정돼 있다. evidently는 litestar 2.19 이상을 요구해서, lock.sh가 이 둘만
+# 기준일을 따로 준다.
+evidently==0.7.23

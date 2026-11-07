@@ -10,6 +10,7 @@ BERT_DIR = '/opt/capstone/bert'  # Dockerfile이 위 revision으로 넣은 토�
 # 클러스터 안 주소. 파이프라인 Pod의 egress가 열린 곳은 여기뿐이다.
 S3_ENDPOINT = 'http://seaweedfs-all-in-one.storage.svc.cluster.local:9000'
 MLFLOW_TRACKING_URI = 'http://mlflow.mlflow.svc.cluster.local:5000'
+EVIDENTLY_URL = 'http://evidently.evidently.svc.cluster.local:8000'
 
 # kfp-pipeline 키는 feature-data-sets/capstone/, feature-registry/capstone/, inference-datasets/에만 쓸 수 있다.
 RAW_CSV = 's3://feature-data-sets/capstone/raw/malicious_phish.csv'
@@ -21,3 +22,9 @@ FEATURE_VIEW = 'url_tokens'  # feature_repo/definitions.py
 EXPERIMENT = 'capstone-kfp'
 REGISTERED_MODEL = 'capstone-url-classifier'
 CHAMPION = 'champion'
+
+# 드리프트(drift.py, url_drift.py). 학습 run이 학습 URL의 url_stats를 아티팩트로 올리고, 그 파일을
+# 출처로 한 데이터셋 입력을 남긴다. 드리프트 단계와 Bento 빌드(pipeline/bento/build.py)가 champion의 것을 받는다.
+REFERENCE_ARTIFACT = 'drift/reference.parquet'
+REFERENCE_DATASET = 'url-stats-train'
+EVIDENTLY_PROJECT = 'capstone-url-classifier'
