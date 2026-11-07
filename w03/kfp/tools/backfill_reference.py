@@ -1,18 +1,8 @@
 """이미 있는 champion run에 드리프트 reference를 넣는다. 3주차 이전에 학습한 run에 한 번만 쓴다.
 
-3주차부터 학습 단계가 학습 URL의 url_stats를 run에 남긴다(drift.log_reference). 그 전에 학습한
-champion에는 그것이 없어 드리프트 단계가 멈춘다. 이 스크립트는 그 run의 학습 URL을 run 파라미터로
-다시 만들고, 학습 단계와 같은 아티팩트(drift/reference.parquet)와 데이터셋 입력(url-stats-train)을
-그 run에 남긴다.
-
-학습 URL은 피처 단계(features.py)와 같은 코드로 다시 만든다: 원본 CSV → 중복 제거 → 표본(sample_size,
-seed) → 8:2 분할(seed) → online 행(n_online, seed). 같은 표본인지는 라벨 parquet의 sha256(run 파라미터
-labels_sha256)으로 확인한다. 그 parquet에는 피처 단계가 돈 시각(event_timestamp)이 들어가는데, 그 시각은
-run에 남지 않았다. 그래서 학습 run이 시작한 시각부터 1초씩 거슬러 올라가며 sha256이 같아지는 시각을
-찾는다. 찾지 못하면 아무것도 쓰지 않고 멈춘다. 원본 CSV, 피처 코드, pandas나 pyarrow 버전 중 하나가
-다르면 그렇게 된다. 같은 바이트가 나와야 하므로 학습 때와 같은 패키지가 든 capstone-kfp 이미지에서 돌린다.
-
-2주차 노트북에서 학습한 run(labels_sha256 파라미터가 없다)은 다시 만들지 않고 멈춘다.
+학습 URL을 run 파라미터로 features.py와 같은 코드로 다시 만들고, 라벨 parquet의 sha256으로 같은 표본인지
+확인한다. parquet에 들어간 피처 단계 시각은 run에 없어서, 학습 run 시작 시각부터 1초씩 거슬러 찾는다.
+같은 바이트가 나와야 하므로 학습 때와 같은 capstone-kfp 이미지에서 돌린다.
 
     docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -v <원본 CSV 디렉터리>:/data:ro \
         -e MLFLOW_TRACKING_URI=<MLflow 주소> -e MLFLOW_TRACKING_USERNAME=<사용자> \
@@ -50,8 +40,7 @@ def read_raw(path):
 
 
 def rebuild_labels(raw, params, started, search_seconds):
-    """run 파라미터로 라벨 parquet을 다시 만들고, sha256이 labels_sha256과 같아지는 피처 단계 시각을
-    started(학습 run 시작 시각)부터 search_seconds초 전까지 찾는다. 찾으면 (라벨, 시각), 없으면 (None, None)."""
+    """sha256이 labels_sha256과 같아지는 피처 단계 시각을 started부터 search_seconds초 전까지 찾는다."""
     deduped, _ = features.dedupe(raw)
     sample = features.stratified_sample(deduped, int(params['sample_size']), int(params['seed']))
     start = started.floor('s')
