@@ -1,0 +1,17 @@
+# Bento 이미지에 들어가는 패키지. lock 기준일은 BentoML 1.4.40이 나온 뒤인 2026-11-03이다.
+bentoml==1.4.40
+
+# 학습 이미지와 같은 버전이어야 champion의 pickle을 풀고 학습 때와 같은 값을 낸다
+torch==2.3.0
+transformers==4.40.1
+# torch 2.3.0은 numpy 1.x로 빌드됐다
+numpy==1.26.4
+
+# 드리프트 감시(drift_monitor.py, url_drift.py): 클러스터의 Evidently UI, KFP 드리프트 단계와 같은 0.7.23.
+# evidently는 pandas 상한을 두지 않는데 0.7.23은 pandas 3에서 import가 실패한다. pandas는
+# build-requirements.in과 같은 2.2.2로 고정한다. pyarrow(pandas[parquet])는 고정하지 않으면 26.0.0으로
+# 풀리는데, 그 판은 numpy 2 이상이어야 import된다(의존성에는 적혀 있지 않다). reference parquet을 쓰는
+# KFP 이미지와 같은 18.1.0으로 고정한다.
+evidently==0.7.23
+pandas==2.2.2
+pyarrow==18.1.0

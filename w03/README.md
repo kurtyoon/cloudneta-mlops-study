@@ -8,7 +8,7 @@ Yatai를 한 번 써 본 뒤 KServe로 옮겼습니다. 이 폴더는 KServe로 
 
 - [amd64 이미지뿐인 Yatai 1.x를 arm64 k3s에 올리기](https://blog.somnitor.dev/posts/92/yatai-on-arm64-k3s): 코드 변경 없음
 - [2024년에 멈춘 캡스톤 Bento, MLflow champion에서 Yatai 배포까지](https://blog.somnitor.dev/posts/93/capstone-bento-on-yatai): `pipeline/bento/` 추가, Yatai 때의 코드
-- [Yatai 없이 KServe로 서빙하고, 캡스톤의 드리프트를 Evidently로 보기](https://blog.somnitor.dev/posts/94/kserve-evidently-drift): KServe로 옮긴 `pipeline/bento/`와 `serving/`, `kfp/`의 드리프트 단계, Bento의 드리프트 감시
+- [KServe 서빙과 Evidently 드리프트 탐지](https://blog.somnitor.dev/posts/94/kserve-evidently-drift): KServe로 옮긴 `pipeline/bento/`와 `serving/`, `kfp/`의 드리프트 단계, Bento의 드리프트 감시
 
 ## 2주차에서 바꾼 파일
 
