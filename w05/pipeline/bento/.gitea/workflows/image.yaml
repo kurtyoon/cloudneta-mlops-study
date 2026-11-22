@@ -1,0 +1,114 @@
+# champion을 넣은 Bento 이미지를 빌드해 Gitea 레지스트리에 올린다.
+# 이미지 입력 중 모델만 저장소 밖(MLflow)에 있어 태그는 <커밋 sha>-v<MLflow 모델 버전>이다.
+# champion이 바뀌면 코드가 그대로여도 workflow_dispatch로 다시 돌리고, ../../serving/의 다이제스트를 바꾼다.
+# 빌드 환경의 Python은 이미지와 같은 3.11이어야 한다. containerize가 빌드 환경의 버전으로 이미지 안 가상환경을 만든다.
+# 레지스트리 로그인에는 write:package 권한의 개인 액세스 토큰 REGISTRY_TOKEN이 필요하다. GITEA_TOKEN으로는 안 된다.
+name: image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: gitea-http.gitea.svc.cluster.local:3000
+      MLFLOW_TRACKING_URI: http://mlflow.mlflow.svc.cluster.local:5000
+      BENTOML_DO_NOT_TRACK: "true"
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build environment
+        run: |
+          python3 -m venv /tmp/uv
+          /tmp/uv/bin/pip install --quiet --require-hashes -r ci-requirements.lock
+          # bentoml build는 PATH에서 uv를 찾고, 없으면 pip로 설치하려다 실패한다. uv 실행 파일만 PATH에 넣는다.
+          mkdir -p /tmp/uv-path && ln -sf /tmp/uv/bin/uv /tmp/uv-path/uv
+          echo /tmp/uv-path >> "$GITHUB_PATH"
+          /tmp/uv/bin/uv venv --python 3.11 .venv
+          /tmp/uv/bin/uv pip install --python .venv/bin/python --require-hashes -r build-requirements.lock
+          .venv/bin/python --version
+          docker version --format 'client {{.Client.Version}}, server {{.Server.Version}} {{.Server.Arch}}'
+
+      - name: Save the champion as a BentoML model
+        run: .venv/bin/python build.py
+
+      - name: Build the Bento and its image
+        env:
+          OWNER: ${{ gitea.repository_owner }}
+          SHA: ${{ gitea.sha }}
+        run: |
+          version=$(.venv/bin/bentoml models get capstone-url-classifier:latest -o json | jq -r .metadata.mlflow_model_version)
+          test -n "$version" && test "$version" != null
+          .venv/bin/bentoml build
+          # 레지스트리의 이미지 이름은 소문자여야 한다.
+          image="$REGISTRY/$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')/capstone-bento:$SHA-v$version"
+          .venv/bin/bentoml containerize capstone_url_classifier:latest -t "$image" \
+            --opt platform=linux/arm64 \
+            --opt label=org.opencontainers.image.revision="$SHA" \
+            --opt label=capstone.mlflow-model-version="$version"
+          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = arm64
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      # 클라이언트도 같은 이미지의 python이라 다른 이미지를 받지 않는다. bento-smoke-drift는 드리프트 감시를
+      # 켜고 Evidently 주소를 닫힌 포트로 준 서버다. 보고서가 실패해도 예측이 200인지 본다.
+      - name: Smoke test
+        run: |
+          docker network create bento-smoke
+          docker run -d --name bento-smoke --network bento-smoke -e BENTOML_DO_NOT_TRACK=true -e OMP_NUM_THREADS=1 "$IMAGE"
+          docker run -d --name bento-smoke-drift --network bento-smoke -e BENTOML_DO_NOT_TRACK=true -e OMP_NUM_THREADS=1 \
+            -e EVIDENTLY_URL=http://127.0.0.1:9 -e EVIDENTLY_SECRET=dummy -e DRIFT_WINDOW=2 "$IMAGE"
+          docker run --rm --network bento-smoke --entrypoint python "$IMAGE" -c '
+          import json, time, urllib.request as u
+          def ready(host):
+              for _ in range(120):
+                  try:
+                      if u.urlopen(f"http://{host}:3000/readyz", timeout=2).status == 200:
+                          return
+                  except OSError:
+                      time.sleep(1)
+              raise SystemExit(f"{host} not ready after 120 s")
+          def predict(host, url):
+              req = u.Request(f"http://{host}:3000/api/predict", data=json.dumps({"url": url}).encode(), headers={"content-type": "application/json"})
+              with u.urlopen(req, timeout=30) as r:
+                  status, body = r.status, json.load(r)
+              print(host, status, body)
+              assert status == 200 and body["prediction"] in ("Benign", "Phishing", "Defacement", "Malware"), body
+          for host in ("bento-smoke", "bento-smoke-drift"):
+              ready(host)
+          predict("bento-smoke", "google.com")
+          for i in range(5):
+              predict("bento-smoke-drift", f"example{i}.com/a/{i}?q={i}")
+          '
+          # 감시가 켜져 있었고 보고서 실패를 로그로만 남겼는지 본다. 로그를 변수에 담고 grep한다:
+          # docker logs를 grep -q에 바로 이으면 grep이 먼저 끝나 docker logs가 SIGPIPE(141)를
+          # 받고, pipefail 때문에 단계가 실패한다.
+          for _ in $(seq 1 60); do
+            logs=$(docker logs bento-smoke-drift 2>&1)
+            grep -qF 'Evidently에 넣지 못했다' <<<"$logs" && break
+            sleep 1
+          done
+          grep -F 'drift:' <<<"$logs"
+          grep -qF 'Evidently에 넣지 못했다' <<<"$logs"
+
+      - name: Log in to the registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          REGISTRY_USER: ${{ gitea.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      - name: Push
+        run: |
+          docker push "$IMAGE"
+          echo "pushed $IMAGE"
+          docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE"
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker rm -f bento-smoke bento-smoke-drift >/dev/null 2>&1 || true
+          docker network rm bento-smoke >/dev/null 2>&1 || true
+          docker logout "$REGISTRY" || true

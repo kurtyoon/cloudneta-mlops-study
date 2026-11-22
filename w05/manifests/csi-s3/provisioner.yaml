@@ -1,0 +1,113 @@
+# yandex-cloud/k8s-csi-s3 v0.43.7의 deploy/kubernetes/provisioner.yaml에서 바꾼 것: arm64 드라이버 이미지(kurtyoon/csi-s3-arm64, upstream은 amd64뿐),
+# 같은 버전의 multi-arch sidecar(registry.k8s.io), kube-system 대신 csi-s3 네임스페이스, resource requests.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-s3-provisioner-sa
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-s3-external-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-s3-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: csi-s3-provisioner-sa
+    namespace: csi-s3
+roleRef:
+  kind: ClusterRole
+  name: csi-s3-external-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-s3-provisioner
+  labels:
+    app: csi-s3-provisioner
+spec:
+  selector:
+    app: csi-s3-provisioner
+  ports:
+    - name: csi-s3-dummy
+      port: 65535
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-s3-provisioner
+spec:
+  serviceName: csi-s3-provisioner
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csi-s3-provisioner
+  template:
+    metadata:
+      labels:
+        app: csi-s3-provisioner
+    spec:
+      serviceAccountName: csi-s3-provisioner-sa
+      containers:
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v6.2.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=4"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/ru.yandex.s3.csi/csi.sock
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/kubelet/plugins/ru.yandex.s3.csi
+        - name: csi-s3
+          image: ghcr.io/kurtyoon/csi-s3-arm64/csi-s3:0.43.7
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(NODE_ID)"
+            - "--v=4"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/kubelet/plugins/ru.yandex.s3.csi/csi.sock
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/kubelet/plugins/ru.yandex.s3.csi
+      volumes:
+        - name: socket-dir
+          emptyDir: {}

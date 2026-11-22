@@ -15,3 +15,4 @@
 - [2주차](w02/): 학습을 MLflow에 기록, Feast와 Kubeflow Pipelines
 - [3주차](w03/): 캡스톤 Bento를 KServe로 배포, Evidently 드리프트
 - [4주차](w04/): 추론 혼동 행렬과 추론 전용 파이프라인, RunPod GPU 학습
+- [5주차](w05/): 버킷 PVC, 모델 게시와 KServe 서빙, git으로 KFP run 실행

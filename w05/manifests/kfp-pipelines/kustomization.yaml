@@ -1,0 +1,30 @@
+# KFP 실습의 파이프라인과 run 요청. Argo CD가 KFP의 Kubernetes native 저장소로 sync한다.
+# - pipelines/: 파일마다 Pipeline 하나와 현재 PipelineVersion 하나. 컴파일한 YAML을 render.py로 바꿔 만들고, 직접 고치지 않는다.
+# - runs/: 요청한 run마다 Job 하나. trigger/trigger.py가 API server로 run을 만들고 끝날 때까지 따라가며, task별 시간을 Job 로그에 남긴다.
+#   다시 돌리려면 이름이 다른 Job을 더한다. Argo CD는 앞 wave의 Job이 끝나야 다음 wave를 시작하므로 run이 겹치지 않는다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kubeflow
+resources:
+  - trigger/serviceaccount.yaml
+  - models-pvc.yaml
+  - tensorboard.yaml
+  # render.py로 만든다(README의 실행 참고). 이 저장소에는 올리지 않았다.
+  - pipelines/idcard-artifact.yaml
+  - pipelines/idcard-local-path.yaml
+  - pipelines/idcard-csi-s3.yaml
+  - pipelines/idcard-csi-s3-fsync.yaml
+  - pipelines/idcard-publish.yaml
+  - pipelines/model-streamer.yaml
+  - pipelines/movie-train.yaml
+  - pipelines/movie-publish.yaml
+  - runs/w05-storage.yaml
+  - runs/w05-serving.yaml
+  - runs/w05-movie.yaml
+configMapGenerator:
+  # 이름에 해시를 붙이지 않는다. Job의 Pod template은 바꿀 수 없어서, 스크립트를 고치면 새 Job에만 반영된다.
+  - name: kfp-run-trigger
+    files:
+      - trigger/trigger.py
+    options:
+      disableNameSuffixHash: true
