@@ -1,0 +1,21 @@
+# PVC마다 csi-volumes 버킷 안에 prefix를 하나씩 만들어 노드의 GeeseFS로 마운트하는 RWX 볼륨. PVC를 지우면 그 prefix의 객체도 지운다.
+# GeeseFS는 파일 권한과 소유자를 저장하지 않아 --dir-mode, --file-mode로 모든 파일에 정하고, 캐시는 마운트마다 --memory-limit MB까지 쓴다.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-s3
+provisioner: ru.yandex.s3.csi
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  mounter: geesefs
+  bucket: csi-volumes
+  options: --memory-limit 1000 --dir-mode 0777 --file-mode 0666
+  csi.storage.k8s.io/provisioner-secret-name: csi-s3-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: csi-s3
+  csi.storage.k8s.io/controller-publish-secret-name: csi-s3-secret
+  csi.storage.k8s.io/controller-publish-secret-namespace: csi-s3
+  csi.storage.k8s.io/node-stage-secret-name: csi-s3-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: csi-s3
+  csi.storage.k8s.io/node-publish-secret-name: csi-s3-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: csi-s3
