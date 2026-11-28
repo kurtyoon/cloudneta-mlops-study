@@ -1,0 +1,84 @@
+# 책 9.3의 영화 추천 모델(행렬 분해). movie-train이 MLflow에서 승격하고 movie-publish(../movie/pipeline_publish.py)가 models/movie/<version>에 내보낸 것이다.
+# STORAGE_URI pvc://models/movie/v2: KServe가 PVC models에서 그 경로를 subPath로 /mnt/models에 읽기 전용 마운트한다. storage-initializer도 복사도 없다.
+#   디렉터리에는 model.pt(TorchScript), movies.json, seen.json, meta.json(레지스트리 버전, MLflow run ID, 지표)이 있다.
+#   새 모델 버전은 새 staging 버전으로 movie-publish를 돌린 뒤 STORAGE_URI를 바꾸는 PR이다.
+# torch가 있는 ultralytics 이미지를 쓴다. TorchScript 파일은 torch만 있으면 읽히지만, MLflow 모델(학습 단계 안에서 정의한 클래스를 cloudpickle로 저장)은 mlflow나 cloudpickle이 필요하다.
+#   movie_server.py를 ConfigMap으로 마운트하고 KServe V1 프로토콜에 답한다. 서버를 고치면 kustomization.yaml과 이 파일에서 ConfigMap 이름을 바꾼다.
+# KServe가 Deployment와 Service movie-recommender-predictor(80에서 8080으로)를 만든다.
+#   GET  /v1/models/movie-recommender
+#   POST /v1/models/movie-recommender:predict  {"instances": [{"user_id": 50, "top_k": 10, "exclude_seen": true}]}
+# 후보는 movies.json의 영화이고, exclude_seen(기본값)이면 사용자가 평점을 남긴 영화를 뺀다. top_k는 최대 100이다.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: movie-recommender
+  annotations:
+    serving.kserve.io/autoscalerClass: none
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    enableServiceLinks: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: kserve-container
+        image: ultralytics/ultralytics:8.4.207-arm64
+        command: [python3, /app/server.py]
+        ports:
+          - containerPort: 8080
+            name: http1
+            protocol: TCP
+        env:
+          - name: STORAGE_URI
+            value: pvc://models/movie/v2
+          - name: MODEL_NAME
+            value: movie-recommender
+          - name: HOME
+            value: /tmp
+          - name: PYTHONDONTWRITEBYTECODE
+            value: "1"
+          # 지정하지 않으면 torch가 노드 코어 수만큼 스레드를 띄운다.
+          - name: OMP_NUM_THREADS
+            value: "1"
+        # torch import, 버킷 PVC에서 model.pt와 JSON 파일 로드, 예열 호출 한 번까지 최대 3분을 기다린다.
+        startupProbe:
+          httpGet:
+            path: /v1/models/movie-recommender
+            port: 8080
+          periodSeconds: 2
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /v1/models/movie-recommender
+            port: 8080
+        resources:
+          requests:
+            cpu: 200m
+            memory: 384Mi
+          limits:
+            cpu: "1"
+            memory: 768Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+          - name: server
+            mountPath: /app
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+    volumes:
+      - name: server
+        configMap:
+          name: movie-recommender-server-2
+      - name: tmp
+        emptyDir:
+          sizeLimit: 256Mi

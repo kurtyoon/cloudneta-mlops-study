@@ -1,0 +1,194 @@
+# 버킷 prefix models로 모델을 게시하고 읽는 run. 모든 run이 experiment w05-serving에 들어간다.
+# - idcard-publish-1: csi-s3 PVC에서 신분증 탐지 모델을 학습하고 best.pt를 models/idcard/v1에 쓴다. 게이트를 붙이기 전 버전으로 돌았다.
+#   그 PipelineVersion은 게이트가 있는 버전으로 바뀌었다. 끝난 run은 자기 spec 사본을 갖고 있다.
+# - model-streamer-2: Qwen2.5-0.5B-Instruct의 model.safetensors를 models/llm/에 받아 두고, 로컬 디스크, 버킷 PVC, S3에서
+#   safetensors와 Run:ai Model Streamer로 읽는 시간을 잰다. 조합마다 Pod 하나에서 cold 한 번, warm 두 번 읽는다.
+# - idcard-publish-2, -3(wave 6, 7, 영화 학습 run 뒤): 게이트가 있는 버전. val mAP50이 min_map50(0.5) 이상일 때만 게시한다.
+#   거부된 run도 성공으로 끝나 Job이 sync를 막지 않는다. -2는 1 epoch라 거부되어 v2를 비워 두고, -3은 5 epoch로 학습해 models/idcard/v2를 게시한다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idcard-publish-1
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-serving}
+            - {name: PIPELINE, value: idcard-publish}
+            - {name: VERSION, value: idcard-publish-c1290822a1}
+            - {name: RUN_NAME, value: idcard-publish-1}
+            - {name: PARAMETERS, value: '{"model_version": "v1"}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-streamer-2
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-serving}
+            - {name: PIPELINE, value: model-streamer}
+            - {name: VERSION, value: model-streamer-c544254481}
+            - {name: RUN_NAME, value: model-streamer-2}
+            - {name: PARAMETERS, value: '{}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idcard-publish-2
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-serving}
+            - {name: PIPELINE, value: idcard-publish}
+            - {name: VERSION, value: idcard-publish-d9ce308b19}
+            - {name: RUN_NAME, value: idcard-publish-2}
+            - {name: PARAMETERS, value: '{"model_version": "v2", "epochs": 1}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idcard-publish-3
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 10800
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-serving}
+            - {name: PIPELINE, value: idcard-publish}
+            - {name: VERSION, value: idcard-publish-d9ce308b19}
+            - {name: RUN_NAME, value: idcard-publish-3}
+            - {name: PARAMETERS, value: '{"model_version": "v2", "epochs": 5}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger

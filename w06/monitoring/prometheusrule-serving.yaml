@@ -1,0 +1,131 @@
+# Alerts on the three serving predictors (MLOps study week 6, CH11). The
+# series come from PodMonitor serving/predictors (../serving/podmonitor.yaml), so every
+# rule filters on job="serving/predictors" and names the model by the label
+# inferenceservice.
+#
+# Every rule carries area: mlops; Alertmanager sends area=mlops to Discord at
+# any severity (alertmanager-values.yaml). The book's two rules are the first two:
+# ServiceDown becomes PredictorDown, MissingUpMetric becomes PredictorMissing.
+#
+# Request metrics differ by server: the capstone Bento has BentoML's
+# bentoml_service_request_* (label path, moved from BentoML's endpoint by the
+# PodMonitor's metric relabelings, and http_response_code), the idcard
+# and movie servers have predictor_requests_total{code} and
+# predictor_request_duration_seconds (../serving/promtext.py).
+# Each rule reads both with `or`; only predict calls count (BentoML also counts
+# its probe paths).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: serving-predictors
+spec:
+  groups:
+    - name: serving-predictors
+      rules:
+        - alert: PredictorDown
+          expr: up{job="serving/predictors"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            area: mlops
+          annotations:
+            summary: "{{ $labels.inferenceservice }}: Prometheus cannot read /metrics"
+            description: >-
+              Scrapes of {{ $labels.pod }} have failed for 2 minutes. The
+              predictor does not answer, or a NetworkPolicy refuses Prometheus.
+        # absent() keeps the equality matchers as labels, so each line names
+        # the model whose series is gone.
+        - alert: PredictorMissing
+          expr: |
+            absent(up{job="serving/predictors", inferenceservice="capstone-url-classifier"})
+            or absent(up{job="serving/predictors", inferenceservice="idcard-detector"})
+            or absent(up{job="serving/predictors", inferenceservice="movie-recommender"})
+          for: 5m
+          labels:
+            severity: critical
+            area: mlops
+          annotations:
+            summary: "{{ $labels.inferenceservice }}: no predictor to scrape"
+            description: >-
+              PodMonitor serving/predictors has found no Pod of this
+              InferenceService for 5 minutes: the predictor is gone, or its
+              labels or port name changed.
+        - alert: PredictorNotReady
+          expr: predictor_model_ready{job="serving/predictors"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            area: mlops
+          annotations:
+            summary: "{{ $labels.inferenceservice }}: model not loaded"
+            description: >-
+              The server answers /metrics but has not loaded its model for 5
+              minutes; predict calls get 503. The load error is in the
+              readiness response and the Pod log.
+        - alert: PredictorErrorRatio
+          expr: |
+            (
+              sum by (inferenceservice) (rate(bentoml_service_request_total{job="serving/predictors", path="/api/predict", http_response_code=~"5.."}[5m]))
+              or sum by (inferenceservice) (rate(predictor_requests_total{job="serving/predictors", code=~"5.."}[5m]))
+            )
+            /
+            (
+              sum by (inferenceservice) (rate(bentoml_service_request_total{job="serving/predictors", path="/api/predict"}[5m]))
+              or sum by (inferenceservice) (rate(predictor_requests_total{job="serving/predictors"}[5m]))
+            )
+            > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            area: mlops
+          annotations:
+            summary: "{{ $labels.inferenceservice }}: {{ $value | humanizePercentage }} of predict calls fail"
+            description: >-
+              More than 5% of predict calls have answered 5xx for 10 minutes.
+              4xx (bad input) does not count.
+        # CPU inference on a shared node: the capstone BERT answers in tens of
+        # milliseconds, YOLO in a few hundred. The bounds leave room for both.
+        - alert: PredictorSlow
+          expr: |
+            histogram_quantile(0.95, sum by (inferenceservice, le) (rate(bentoml_service_request_duration_seconds_bucket{job="serving/predictors", path="/api/predict"}[5m]))) > 1
+            or histogram_quantile(0.95, sum by (inferenceservice, le) (rate(predictor_request_duration_seconds_bucket{job="serving/predictors"}[5m]))) > 2.5
+          for: 10m
+          labels:
+            severity: warning
+            area: mlops
+          annotations:
+            summary: "{{ $labels.inferenceservice }}: p95 predict latency {{ $value | humanizeDuration }}"
+            description: >-
+              The 95th percentile of predict latency has stayed above 1 s
+              (capstone) or 2.5 s (idcard, movie) for 10 minutes.
+        # The capstone Bento judges each window of 100 request URLs against
+        # the champion's training URLs (KS test per column, drift when at least
+        # half the columns drift) and counts the result before it tries
+        # Evidently, so this fires even when Evidently is down. One drifted
+        # window fires it; it resolves 15 minutes after the last one.
+        - alert: CapstoneInputDrift
+          expr: increase(capstone_drift_windows_total{job="serving/predictors", result="drifted"}[15m]) > 0
+          labels:
+            severity: warning
+            area: mlops
+          annotations:
+            summary: "capstone-url-classifier: request URLs drifted from the training URLs"
+            description: >-
+              {{ $value | printf "%.0f" }} window(s) of request URLs drifted in
+              the last 15 minutes. Last window: {{ with query "max(capstone_drift_share{job=\"serving/predictors\"})" }}{{ . | first | value | humanizePercentage }}{{ end }}
+              of the URL columns drifted. Reports: Evidently project
+              capstone-url-classifier.
+        - alert: CapstoneDriftReportsFailing
+          expr: |
+            increase(capstone_drift_uploads_total{job="serving/predictors", result="failed"}[30m]) > 0
+            or increase(capstone_drift_windows_total{job="serving/predictors", result="error"}[30m]) > 0
+          labels:
+            severity: warning
+            area: mlops
+          annotations:
+            summary: "capstone-url-classifier: drift reports are not reaching Evidently"
+            description: >-
+              A drift window could not be judged, or its report could not be
+              added to Evidently, in the last 30 minutes. Judged windows still
+              count for CapstoneInputDrift. The reason is in the predictor log
+              (lines starting with drift:).

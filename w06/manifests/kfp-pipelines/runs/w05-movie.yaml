@@ -1,0 +1,147 @@
+# 책 9.3의 영화 추천 run. 모든 run이 experiment w05-movie에 들어간다.
+# - movie-train-1: 책 기본값(lr 0.001, 30 epoch). 첫 run이라 게이트가 recommender_production v1로 등록하고 staging alias를 붙인다.
+# - movie-train-2: 책의 표 9.1, 9.2처럼 학습률만 0.01로 바꾼다. 게이트가 staging과 비교해 alias를 옮기거나 run에 promotion=rejected 태그를 단다.
+#   어느 쪽이든 KFP run은 성공하므로 결과는 MLflow 레지스트리에서 본다.
+#   두 run 모두 PVC models의 tensorboard/movie-train/<MLflow run ID>에 TensorBoard 이벤트를 쓴다(../tensorboard.yaml).
+# - movie-publish-1(wave 8): 두 학습이 끝난 뒤 recommender_production@staging이 가리키는 버전을 TorchScript로 바꿔,
+#   영화 목록, 사용자별 평점 영화 목록과 함께 models/movie/v<레지스트리 버전>에 내보낸다. 신분증 run(wave 6, 7)도 기다린다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: movie-train-1
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-movie}
+            - {name: PIPELINE, value: movie-train}
+            - {name: VERSION, value: movie-train-ec7317e677}
+            - {name: RUN_NAME, value: movie-train-1}
+            - {name: PARAMETERS, value: '{}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: movie-train-2
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-movie}
+            - {name: PIPELINE, value: movie-train}
+            - {name: VERSION, value: movie-train-ec7317e677}
+            - {name: RUN_NAME, value: movie-train-2}
+            - {name: PARAMETERS, value: '{"training_learning_rate": 0.01}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: movie-publish-1
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      serviceAccountName: kfp-run-trigger
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trigger
+          image: python:3.13-slim
+          command: [python3, /trigger/trigger.py]
+          env:
+            - {name: KFP_API, value: "http://ml-pipeline.kubeflow.svc.cluster.local:8888"}
+            - {name: EXPERIMENT, value: w05-movie}
+            - {name: PIPELINE, value: movie-publish}
+            - {name: VERSION, value: movie-publish-40b1d2979b}
+            - {name: RUN_NAME, value: movie-publish-1}
+            - {name: PARAMETERS, value: '{}'}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: trigger
+              mountPath: /trigger
+              readOnly: true
+      volumes:
+        - name: trigger
+          configMap:
+            name: kfp-run-trigger

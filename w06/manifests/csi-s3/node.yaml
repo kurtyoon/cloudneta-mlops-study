@@ -1,0 +1,135 @@
+# yandex-cloud/k8s-csi-s3 v0.43.7의 deploy/kubernetes/csi-s3.yaml에서 provisioner.yaml과 같은 부분을 바꿨다.
+# 드라이버는 마운트마다 노드에 systemd unit(geesefs-<volume>.service)을 띄워, 이 Pod가 재시작해도 마운트가 남는다.
+# 그래서 GeeseFS는 노드의 네트워크 네임스페이스에서 돌고, S3에는 서비스 DNS가 아니라 Secret의 endpoint로 닿는다.
+# 볼륨을 쓰는 Pod의 NetworkPolicy는 GeeseFS에 적용되지 않고, GeeseFS 메모리는 이 Pod의 limit 밖이다(storageclass.yaml의 --memory-limit).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-s3
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-s3
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-s3
+subjects:
+  - kind: ServiceAccount
+    name: csi-s3
+    namespace: csi-s3
+roleRef:
+  kind: ClusterRole
+  name: csi-s3
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-s3
+spec:
+  selector:
+    matchLabels:
+      app: csi-s3
+  template:
+    metadata:
+      labels:
+        app: csi-s3
+    spec:
+      serviceAccountName: csi-s3
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0
+          args:
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            - "--v=4"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/ru.yandex.s3.csi/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration/
+        - name: csi-s3
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: ghcr.io/kurtyoon/csi-s3-arm64/csi-s3:0.43.7
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(NODE_ID)"
+            - "--v=4"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: stage-dir
+              mountPath: /var/lib/kubelet/plugins/kubernetes.io/csi
+              mountPropagation: Bidirectional
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+            - name: fuse-device
+              mountPath: /dev/fuse
+            - name: systemd-control
+              mountPath: /run/systemd
+      volumes:
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: DirectoryOrCreate
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/ru.yandex.s3.csi
+            type: DirectoryOrCreate
+        - name: stage-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/kubernetes.io/csi
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: fuse-device
+          hostPath:
+            path: /dev/fuse
+        - name: systemd-control
+          hostPath:
+            path: /run/systemd
+            type: DirectoryOrCreate

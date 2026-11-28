@@ -1,0 +1,70 @@
+# kube-prometheus-stack(Helm) values 중 Alertmanager와 Grafana 데이터소스 부분.
+# 스터디의 서빙 규칙(area=mlops, 모든 severity)과 critical 알림만 Discord로 보낸다. 기본 규칙의 warning은
+# null receiver로 가고 Prometheus, Alertmanager, Grafana의 Alerts 화면에서만 본다.
+#
+# webhook URL은 monitoring 네임스페이스의 Secret alertmanager-discord(키 webhook-url)에서 파일로 읽는다.
+# operator는 alertmanagerSpec.secrets의 Secret을 /etc/alertmanager/secrets/<이름>/에 마운트하므로, URL이
+# 이 설정에 나오지 않는다. Secret은 이 저장소에 없고 따로 만든다.
+#
+# config는 chart의 기본 설정 전체를 바꾸므로 기본 inhibit 규칙을 여기에 다시 적는다.
+# tplConfig는 false로 둔다. 아래 {{ }}는 Helm이 아니라 Alertmanager가 푼다.
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+    inhibit_rules:
+      - source_matchers: ['severity = critical']
+        target_matchers: ['severity =~ warning|info']
+        equal: [namespace, alertname]
+      - source_matchers: ['severity = warning']
+        target_matchers: ['severity = info']
+        equal: [namespace, alertname]
+      - source_matchers: ['alertname = InfoInhibitor']
+        target_matchers: ['severity = info']
+        equal: [namespace]
+      - target_matchers: ['alertname = InfoInhibitor']
+    route:
+      group_by: [alertname, namespace, inferenceservice]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: "null"
+      routes:
+        - receiver: "null"
+          matchers: ['alertname = "Watchdog"']
+        - receiver: discord
+          matchers: ['area = "mlops"']
+        - receiver: discord
+          matchers: ['severity = "critical"']
+    receivers:
+      - name: "null"
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/webhook-url
+            send_resolved: true
+            title: >-
+              [{{ .Status | toUpper }}{{ if eq .Status "firing" }} {{ .Alerts.Firing | len }}{{ end }}]
+              {{ .CommonLabels.alertname }}
+            message: |-
+              {{ range .Alerts }}{{ if eq .Status "firing" }}발생{{ else }}해제{{ end }}: {{ .Annotations.summary }}
+              {{ .Annotations.description }}
+              {{ end }}
+    templates:
+      - /etc/alertmanager/config/*.tmpl
+  alertmanagerSpec:
+    secrets:
+      - alertmanager-discord
+    retention: 120h
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+grafana:
+  sidecar:
+    datasources:
+      # Grafana에 Alertmanager 데이터소스를 만든다.
+      alertmanager:
+        enabled: true

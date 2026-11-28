@@ -1,0 +1,77 @@
+# 학습 run의 TensorBoard(책 9.2). 파이프라인이 PVC models의 tensorboard/<pipeline>/<run>에 복사한 이벤트 파일을 읽기 전용으로 읽는다.
+# 학습 단계는 자기 /tmp에 이벤트를 쓰고 끝날 때 한 번 복사하므로, 이 서버가 쓰는 중인 파일을 읽는 일은 없다.
+# Service와 공개 주소는 없다. deploy/tensorboard의 6006 포트로 port-forward해서 본다.
+# 이 Pod가 떠 있는 동안 노드에 prefix models의 GeeseFS 프로세스가 살아 있어, PVC models를 마운트하는 단계가 빈 캐시로 시작하지 않는다.
+# model streamer의 cold PVC 읽기를 재려면 이 Deployment를 0으로 줄인다.
+# 이미지는 plain Python이고 시작할 때 TensorBoard를 /tmp에 설치한다. TensorBoard 2.20.0은 pkg_resources를 import하는데 python:3.13-slim에 없어서 setuptools를 같이 넣는다.
+# --reload_interval 60: 디렉터리 스캔이 GeeseFS를 거쳐 S3 LIST 요청이 되므로 1분에 한 번으로 줄인다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorboard
+  labels:
+    app.kubernetes.io/name: tensorboard
+  annotations:
+    # 모든 run Job 뒤(wave 1-8 다음). 서버가 뜨지 못해도 run을 시작하는 wave를 막지 않는다. run을 더해도 마지막에 둔다.
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tensorboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tensorboard
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tensorboard
+          image: python:3.13-slim
+          command:
+            - sh
+            - -c
+            - >-
+              pip install --quiet --no-cache-dir --disable-pip-version-check --upgrade --target /tmp/pkgs tensorboard==2.20.0 setuptools==80.10.2 &&
+              PYTHONPATH=/tmp/pkgs exec python -m tensorboard.main
+              --logdir /models/tensorboard --bind_all --port 6006 --reload_interval 60
+          env:
+            - {name: HOME, value: /tmp}
+          ports:
+            - {name: http, containerPort: 6006}
+          startupProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 50m, memory: 256Mi, ephemeral-storage: 256Mi}
+            limits: {cpu: 500m, memory: 1Gi, ephemeral-storage: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: models
+          persistentVolumeClaim:
+            claimName: models
+            readOnly: true

@@ -1,0 +1,12 @@
+# 레지스트리의 S3 엔드포인트는 common.feature_store가 넣는 FEAST_S3_ENDPOINT_URL로 정한다.
+# Valkey는 다른 Feast 프로젝트와 같이 쓴다. 키 끝에 프로젝트 이름이 붙어 섞이지 않는다.
+# ${VALKEY_PASSWORD}는 Feast가 환경 변수로 바꾼다. 이 변수가 없는 단계는 온라인 스토어를 열지 않는다.
+project: capstone
+registry: s3://feature-registry/capstone/registry.db
+provider: local
+offline_store:
+  type: file
+online_store:
+  type: redis
+  connection_string: "valkey.feast.svc.cluster.local:6379,password=${VALKEY_PASSWORD}"
+entity_key_serialization_version: 2
