@@ -1,0 +1,26 @@
+# 책 실습 모델 두 개의 InferenceService. KServe Standard 모드로 serving 네임스페이스에 띄운다.
+# capstone-url-classifier.yaml은 Evidently Secret이 따로 필요해 여기에 넣지 않았다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: serving
+resources:
+  - models-pvc.yaml
+  - idcard-detector.yaml
+  - movie-recommender.yaml
+  # Prometheus가 세 predictor의 /metrics를 읽는다(6주차).
+  - podmonitor.yaml
+configMapGenerator:
+  # 이름에 해시를 붙이지 않는다. kustomize는 InferenceService 안의 이름을 고쳐 쓰지 않으므로,
+  # 서버를 고치면 여기와 InferenceService에서 이름을 함께 바꾼다. 두 서버 모두 /metrics를 promtext.py로 만든다.
+  - name: idcard-detector-server-2
+    files:
+      - server.py=server.py
+      - promtext.py=promtext.py
+    options:
+      disableNameSuffixHash: true
+  - name: movie-recommender-server-2
+    files:
+      - server.py=movie_server.py
+      - promtext.py=promtext.py
+    options:
+      disableNameSuffixHash: true

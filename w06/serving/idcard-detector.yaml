@@ -1,0 +1,90 @@
+# 책의 객체 탐지 프로젝트인 신분증 탐지 YOLO 모델. KFP 파이프라인 idcard-publish(../idcard/pipeline_publish.py)가 models/idcard/<version>에 쓴 것이다.
+# STORAGE_URI pvc://models/idcard/v2: KServe가 PVC models(models-pvc.yaml)에서 그 경로를 subPath로 /mnt/models에 읽기 전용 마운트한다. storage-initializer도 복사도 없다.
+#   모델 버전을 바꾸는 것은 STORAGE_URI를 바꾸는 PR이다. 게시한 버전의 파일은 바뀌지 않는다(idcard-publish가 덮어쓰기를 거부한다).
+# predictor는 학습에 쓴 이미지(torch와 ultralytics가 있다)에서 server.py를 실행한다. server.py는 ConfigMap으로 마운트하고 KServe V1 프로토콜에 답한다.
+#   서버를 고치면 kustomization.yaml과 이 파일에서 ConfigMap 이름을 바꾼다. kustomize는 InferenceService 안의 이름을 고쳐 쓰지 않는다.
+# KServe가 Deployment와 Service idcard-detector-predictor(80에서 8080으로)를 만든다.
+#   GET  /v1/models/idcard-detector
+#   POST /v1/models/idcard-detector:predict  {"instances": [{"image": {"b64": "<PNG 또는 JPEG>"}}]}
+# 이 predictor가 떠 있는 동안 노드에 prefix models의 GeeseFS 프로세스가 살아 있어서, model streamer의 PVC 읽기는 cold가 아니다.
+# 이미지 기본 사용자는 root지만 root가 필요한 것은 없다. ultralytics, matplotlib, pip 캐시는 /tmp에 두고, YOLO_OFFLINE으로 외부 접속을 막는다.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: idcard-detector
+  annotations:
+    serving.kserve.io/autoscalerClass: none
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    enableServiceLinks: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: kserve-container
+        image: ultralytics/ultralytics:8.4.207-arm64
+        command: [python3, /app/server.py]
+        ports:
+          - containerPort: 8080
+            name: http1
+            protocol: TCP
+        env:
+          - name: STORAGE_URI
+            value: pvc://models/idcard/v2
+          - name: MODEL_NAME
+            value: idcard-detector
+          - name: HOME
+            value: /tmp
+          - name: YOLO_CONFIG_DIR
+            value: /tmp/ultralytics
+          - name: MPLCONFIGDIR
+            value: /tmp/matplotlib
+          - name: YOLO_OFFLINE
+            value: "true"
+          - name: PYTHONDONTWRITEBYTECODE
+            value: "1"
+          # 지정하지 않으면 torch가 노드 코어 수만큼 스레드를 띄운다.
+          - name: OMP_NUM_THREADS
+            value: "1"
+        # torch와 ultralytics import, 버킷 PVC에서 best.pt 로드, 예열 predict 한 번까지 최대 3분을 기다린다.
+        startupProbe:
+          httpGet:
+            path: /v1/models/idcard-detector
+            port: 8080
+          periodSeconds: 2
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /v1/models/idcard-detector
+            port: 8080
+        resources:
+          requests:
+            cpu: 200m
+            memory: 768Mi
+          limits:
+            cpu: "1"
+            memory: 1536Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+          - name: server
+            mountPath: /app
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+    volumes:
+      - name: server
+        configMap:
+          name: idcard-detector-server-2
+      - name: tmp
+        emptyDir:
+          sizeLimit: 512Mi

@@ -1,0 +1,17 @@
+# run 사이에 남겨 둘 파일(게시한 모델, TensorBoard 이벤트)을 두는 PVC. 버킷 csi-volumes의 prefix models를 PV models-kubeflow로 묶는다(../csi-s3/models-pv.yaml).
+# serving은 같은 prefix를 자기 PVC models로 읽기 전용 마운트한다. 파이프라인은 kubernetes.mount_pvc(task, pvc_name='models', ...)로 마운트한다.
+# wave -1: Pending인 PVC를 마운트하는 단계는 기다리므로 run Job보다 먼저 만든다. 이 PVC를 지워도 prefix는 남는다(PV가 Retain).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  storageClassName: ""
+  volumeName: models-kubeflow
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi

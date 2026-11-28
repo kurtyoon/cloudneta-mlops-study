@@ -1,0 +1,12 @@
+# 드라이버 Secret csi-s3-secret(accessKeyID, secretAccessKey, endpoint, region)은 여기에 없어서 먼저 만든다.
+# endpoint는 노드에서 닿는 S3 주소로 적는다. GeeseFS가 노드 네트워크에서 돌아 클러스터 DNS를 쓰지 못한다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: csi-s3
+resources:
+  - driver.yaml
+  - node.yaml
+  - provisioner.yaml
+  - storageclass.yaml
+  # 클러스터 범위 리소스다. claimRef가 kubeflow와 serving의 PVC models를 가리킨다.
+  - models-pv.yaml

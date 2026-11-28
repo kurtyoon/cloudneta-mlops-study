@@ -1,0 +1,62 @@
+# 버킷 csi-volumes의 prefix models를 정적 PV 두 개로 만들어 kubeflow와 serving의 PVC models에 하나씩 묶는다.
+# PVC는 한 네임스페이스에만 있으므로, 같은 prefix를 두 네임스페이스에서 쓰려면 volumeHandle(<bucket>/<prefix>)이 같은 PV가 네임스페이스마다 필요하다.
+# 파이프라인 단계는 앞의 PV로 모델을 쓰고, InferenceService는 뒤의 PV로 같은 객체를 복사 없이 읽는다(storageUri pvc://models/<path>).
+# kubelet은 CSI 볼륨을 driver와 volumeHandle로 구분하므로, 노드에서는 두 PV가 GeeseFS unit 하나를 같이 쓴다.
+# Retain이고 StorageClass가 없어서 PV나 PVC를 지워도 prefix는 남는다. 두 PV 모두 버킷 전체에 쓸 수 있는 드라이버 키(csi-s3-secret)를 쓴다.
+# 드라이버는 마운트할 때 read-only 표시를 무시한다(v0.43.7의 NodePublishVolume). serving의 읽기 전용은 KServe가 predictor에 주는 read-only volumeMount가 지킨다.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: models-kubeflow
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: kubeflow
+    name: models
+  csi:
+    driver: ru.yandex.s3.csi
+    volumeHandle: csi-volumes/models
+    nodeStageSecretRef:
+      name: csi-s3-secret
+      namespace: csi-s3
+    nodePublishSecretRef:
+      name: csi-s3-secret
+      namespace: csi-s3
+    volumeAttributes:
+      capacity: 10Gi
+      mounter: geesefs
+      options: --memory-limit 1000 --dir-mode 0777 --file-mode 0666
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: models-serving
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: serving
+    name: models
+  csi:
+    driver: ru.yandex.s3.csi
+    volumeHandle: csi-volumes/models
+    readOnly: true
+    nodeStageSecretRef:
+      name: csi-s3-secret
+      namespace: csi-s3
+    nodePublishSecretRef:
+      name: csi-s3-secret
+      namespace: csi-s3
+    volumeAttributes:
+      capacity: 10Gi
+      mounter: geesefs
+      options: --memory-limit 1000 --dir-mode 0777 --file-mode 0666
